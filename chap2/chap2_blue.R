@@ -11,7 +11,7 @@ df_covid19 <- read_csv(file = "D:/R/data/Rnpy/owid-covid-data.csv",
                        )
 )
 df_covid19_100 <- df_covid19 |> 
-  filter(iso_code %in% c('KOR', 'OWID_ASI', 'OWID_EUR', 'OWID_OCE', 'OWID_NAM', 'OWID_SAM', 'OWID_AFR')) |>
+  filter(iso_code %in% c('KOR', 'OWID_ASI', 'OWID_EUR', 'OWID_OCE', 'OWID_NAM', 'OWID_SAM', 'OWID_AFR')) |> # nolint
   filter(date >= max(date) - 100) |>
   mutate(location = case_when(
     location == 'South Korea' ~ '한국', 
@@ -46,7 +46,7 @@ margins_R <- list(t = 50, b = 25, l = 25, r = 25)
 
 
 
-############################################################################################
+############################################################################################ # nolint
 
 ## R 코드
 
