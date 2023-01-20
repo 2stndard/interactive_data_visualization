@@ -1,0 +1,2432 @@
+---
+title : plotly 시각화 만들기
+output: 
+  officedown::rdocx_document:
+    reference_docx: bookdown.docx
+    plots:
+      style: Normal
+      align: center
+      fig.lp: 'fig:'
+      topcaption: false
+      fig_caption: yes
+      caption:
+        style: Image Caption
+        pre: '실행결과 2- '
+        sep: '. '
+        tnd: 0
+        tns: '-'
+        fp_text: !expr officer::fp_text_lite(bold = TRUE)
+      Normal: ['First Paragraph']
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 6.5, dpi = 130)
+library(showtext)
+showtext_auto()
+library(tidyverse)
+library(readxl)
+library(patchwork)
+library(plotly)
+library(reticulate)
+```
+
+```{css, echo=FALSE}
+.RCode {
+background-color: grey30;
+}
+
+.pythonCode {
+background-color: white;
+}
+
+```
+
+데이터 분석을 다루는 많은 교육코스나 서적에서 데이터의 시각화는 R의 경우 R base나 `ggplot2` 패키지를 사용하여는 방법, 파이썬의 경우 `matplotlib`이나 `seaborn` 패키지를 사용하는 방법을 위주로 설명한다. 이러한 방법들은 데이터 시각화 방법이 간단하고 그 품질이 좋은 편이기 때문에 많이 사용되고 있지만 정적(Static) 시각화라는 한계를 가진다. 정적 시각화는 대부분 이미지로 저장되며 인포그래픽(Infographic)이라고도 불리며, 일반적으로 문서나 인쇄물에 많이 사용되고 웹에 게시되는 이미지로도 사용된다. 그렇기 때문에 대부분 png, jpg, pdf 등의 벡터 혹은 픽셀 이미지 파일로 제공된다. 정적 데이터 시각화는 데이터 분석가의 의도에 맞춰 작성되기 때문에 데이터 분석가의 데이터 분석 관점에 의존적일 수 밖에 없으며 시각화를 사용하는 사용자의 의도에 따른 해석은 매우 제한될 수 밖에 없다.
+
+이러한 제한점을 극복하기 위해 사용되는 데이터 시각화 방법이 동적(Dynamic) 시각화 혹은 인터랙티브(Interactive) 시각화라고 하는 방법이다. 이 동적 시각화는 시각화를 사용하는 사용자의 의도에 따라 데이터를 다각적 관점에서 살펴볼 수 있다는 점이 특징이다. 사용자의 의도에 따라 데이터가 동적으로 변동되어야 하기 때문에 데이터 시각화가 많이 사용되는 인쇄물 형태 매체에서 사용이 어렵고 웹을 통해 사용되어야 그 장점을 충실히 사용할 수 있다. 따라서 동적 시각화는 웹 사이트에서 제공하는 대시보드(DashBoard)의 형태로 제공되는 것이 일반적이기 때문에 동적 시각화를 위해서는 R이나 파이썬에서 주로 사용되는 시각화 패키지가 아닌 동적 시각화 전용 패키지를 사용해야 한다. R에서는 동적 시각화를 위해 `rbokeh`, `highcharter` 등이 사용되었고 파이썬에서는 `bokeh`, `hvplot` 등을 사용되었다. 하지만 R과 파이썬 모두에서 사용되는 `plotly` 패키지가 등장함으로써 R과 파이썬의 동적 시각화 패키지 시장에서 매우 빠르게 사용자층을 넓혀가고 있다.
+
+하지만 정적 시각화와 동적 시각화의 어느것이 더 효용성이 있는지를 단언할 수 없다. 데이터 시각화가 사용되는 매체, 데이터 시각화를 보는 대상, 데이터 시각화에서 보여주고자 하는 스토리에 따라서 정적 시각화를 사용해야 할 때와 동적 시각화를 사용해야 할 때를 적절히 선택해야 한다.
+
+# plotly란?
+
+'plotly'는 캐나다 몬트리올에 본사를 두고 있는 데이터 시각화 전문 회사의 이름이다. 이 회사는 2012년 처음 설립되었는데 데이터 전문 분석 도구와 데이터 시각화 전문 도구를 개발하여 보급한다. 'plotly'는 이 책에서 설명할 R과 파이썬의 `plotly` 패키지 외에도 R, 파이썬, 줄리아 등의 개발도구에서 사용가능한 데이터 대시보드 플랫폼인 `dash`를 비롯해 `dash` 플랫폼으로 개발된 웹페이지를 배포하기 위한 'Dash Enterprise', `plotly`를 기반으로 온라인 동적 시각화를 만드는 'Chart Studio Cloud' 등의 서비스를 제공하고 있다. 이 중 가장 유명한 제품이 회사의 이름에서도 나타나듯이 `plotly` 시각화 패키지이다.
+
+![plotly 홈페이지 화면](D:/R/git/datavisualization/plotly/chap2/plotly_homepage.png)
+
+`plotly` 패키지는 R, 파이썬, Julia, Java Script, F#, MATLAB 등의 다양한 언어에서 사용이 가능하도록 각각의 언어에 바인딩되는 패키지를 개발하여 제공하고 있다. `plotly`에서 제공하는 데이터 시각화는 산점도, 선 그래프와 같은 기본 차트(Basic Chart), 박스 플롯, 히스토그램과 같은 통계 차트(Statistical Chart), 히트맵, 삼각플롯(Ternary Plot)과 같은 과학 차트(Scienctific Chart), 시계열 차트, 캔들 차트와 같은 재정 차트(Finantial Chart) 등의 다양한 차트와 플롯을 제공한다.
+
+![plotly 패키지 홈페이지](D:/R/git/datavisualization/plotly/chap2/plotly_library.png)
+
+다음의 R 그래픽 패키지 다운로드 현황에서 보듯이 여전히 R에서 가장 많이 사용되고 있는 그래픽 패키지는 `ggplot2`이지만 `plotly`는 2021년 하반기부터 다운로드가 늘고 있고 다른 그래픽 패키지에 비해서는 압도적인 다운로드 수를 보인다.
+
+```{r echo = FALSE}
+library(dlstats)
+
+#x <- cran_stats(c("ggplot2", "plotly", "rbokeh", "highcharter"))
+x1 <- cran_stats(c("ggplot2", "plotly", "rbokeh", "highcharter", 'lattice', 'esquisse', 'leaflet', 'dygraphs', 'ggvis', 'colourpicker', 'patchwork', 'ggforce'))
+
+x1 |> plot_ly() |> #filter(package != 'ggplot2') |> 
+  add_lines(x = ~end, y = ~downloads, color = ~package, colors = ~ifelse(package == 'plotly', 'darkblue', 'gray'))
+
+```
+
+`plotly`의 다운로드 수 증가는 파이썬에서도 유사한 흐름을 보인다. 다음의 그림에서도 보이듯이 파이썬에서 많이 사용되는 시각화 패키지 중 가장 다운로드수가 많은 것은 역시나 `matplotlib`이다. 하지만 `matplotlib`을 제외하면 2022년 중순까지만 해도 `seaborn` 패키지의 다운로드 수가 가장 많았으나 이 후 `plotly`가 `seaborn`과 대등하거나 오히려 더 다운로드가 많은 날이 상당히 눈에 띈다. 하지만 파이썬에서 동적 시각화를 지원하는 `bokeh`나 `hvplot`보다는 월등히 많은 다운로드를 보인다. 결국 파이썬에서도 동적 시각화에서는 `plotly`가 가장 많이 사용되는 패키지인 것이다.
+
+![파이썬 plotly 다운로드](D:/R/git/datavisualization/plotly/chap2/python_download.png)
+
+# 예제 데이터 Import와 전처리
+
+먼저 `plotly`를 사용하여 시각화를 실습하는데 필요한 데이터 셋 두 가지를 전처리 하겠다.
+
+## Covid19 데이터 셋
+
+첫번째 데이터 셋은 2020년 1월부터 기록된 전세계 국가의 코로나19 발병 관련 데이터이다. 이 데이터는 Github에서 다양한 전세계 데이터를 배포하는 'Open World in Data'에서 제공하는 'COVID-19 Dataset by Our World in Data'를 사용한다.[^1] 이 데이터는 온라인으로 매일 업데이트되기 때문에 다운로드 시점에 따라 시각화 결과가 책과 다소 달라질 수 있다.[^2]
+
+[^1]: <https://github.com/plotly/plotly.js/blob/master/src/plot_api/plot_config.js>
+
+[^2]: 필자의 블로그에 업로드된 데이터를 활용하면 책과 동일한 결과를 얻을 수 있다.
+
+OWID에서 제공하는 데이터를 활용하여 4개의 데이터 셋을 만든다. 첫 번째 데이터 셋은 OWID에서 제공하는 원본 데이터를 가져와서 R에 로딩하는 원본 데이터 셋으로 'df_covid19' 데이터프레임에 저장한다. 'df_covid19' 데이터 프레임은 2020년 1월 1일부터 기록되어 있기 때문에 데이터가 다소 많다. 따라서 이 데이터 중에 최근 100일간의 데이터와 한국과 각 대륙 데이터만을 필터링한 데이터 셋을 두 번째 데이터 셋인 'df_covid19_100' 데이터프레임으로 저장한다. 세 번째 데이터 셋은 100일간의 데이터 셋을 넓은 형태의 데이터 셋으로 변환한 'df_covid19_100_wide'로 저장한 데이터프레임이다. 네 번쨰는 2년 넘게 기록된 Covid19 데이터 셋의 각종 데이터를 국가별 요약 통계치를 산출하여 저장한 'df_covid19_stat' 데이터프레임이다.
+
+-   R
+
+```{r eval = FALSE, class.source="RCode"}
+##  R code
+## 데이터 전처리를 위한 패키지 설치 및 로딩
+if(!require(readr)) {
+  install.packages('readr')
+  library(readr)
+}
+
+if(!require(lubridate)) {
+  install.packages('lubridate')
+  library(lubridate)
+}
+
+if(!require(tidyverse)) {
+  install.packages('tidyverse')
+  library(tidyverse)
+}
+
+## 1. covid19 원본 데이터 셋 로딩
+## covid19 데이터 로딩(파일을 다운로드 받은 경우)
+# df_covid19 <- read_csv(file = "데이터저장경로/owid-covid-data.csv",
+#                             col_types = cols(Date = col_date(format = "%Y-%m-%d")
+#                                              )
+#                             )
+## covid19 데이터 로딩(온라인에서 바로 로딩할 경우)
+df_covid19 <- read_csv(file = "https://covid.ourworldindata.org/data/owid-covid-data.csv",
+                            col_types = cols(Date = col_date(format = "%Y-%m-%d")
+                                             )
+                            )
+## 2. 전체 데이터셋 중 최근 100일간의 데이터를 필터링한 df_covid19_100 생성
+df_covid19_100 <- df_covid19 |> 
+  ## 한국 데이터와 각 대륙별 데이터만을 필터링
+  filter(iso_code %in% c('KOR', 'OWID_ASI', 'OWID_EUR', 'OWID_OCE', 'OWID_NAM', 'OWID_SAM', 'OWID_AFR')) |>
+  ## 읽은 데이터의 마지막 데이터에서 100일전 데이터까지 필터링
+  filter(date >= max(date) - 100) |>
+  ## 국가명을 한글로 변환
+  mutate(location = case_when(
+    location == 'South Korea' ~ '한국', 
+    location == 'Asia' ~ '아시아', 
+    location == 'Europe' ~ '유럽', 
+    location == 'Oceania' ~ '오세아니아', 
+    location == 'North America' ~ '북미', 
+    location == 'South America' ~ '남미', 
+    location == 'Africa' ~ '아프리카')) |>
+  ## 국가 이름의 순서를 설정 
+  mutate(location = fct_relevel(location, '한국', '아시아', '유럽', '북미', '남미', '아프리카', '오세아니아')) |>
+  ## 날짜로 정렬
+  arrange(date)
+
+
+## 3. df_covid19_100을 한국과 각 대륙별열로 배치한 넓은 형태의 데이터프레임으로 변환
+df_covid19_100_wide <- df_covid19_100 |>
+  ## 날짜, 국가명, 확진자와, 백신접종완료자 데이터만 선택
+  select(date, location, new_cases, people_fully_vaccinated_per_hundred) |>
+  ## 열 이름을 적절히 변경
+  rename('date' = 'date', '확진자' = 'new_cases', '백신접종완료자' = 'people_fully_vaccinated_per_hundred') |>
+  ## 넓은 형태의 데이터로 변환
+  pivot_wider(id_cols = date, names_from = location, 
+              values_from = c('확진자', '백신접종완료자')) |>
+  ## 날짜로 정렬
+  arrange(date)
+
+## 4. covid19 데이터를 국가별로 요약한 df_covid19_stat 생성
+df_covid19_stat <- df_covid19 |> 
+  group_by(iso_code, continent, location) |>
+  summarise(인구수 = max(population, na.rm = T), 
+            인당GDP = max(gdp_per_capita, na.rm = T),
+            전체확진자수 = sum(new_cases, na.rm = T),
+            전체사망자수 = sum(new_deaths, na.rm = T), 
+            십만명당중환자실 = last(icu_patients_per_million),
+            재생산지수 = last(reproduction_rate),
+            봉쇄지수 = max(stringency_index), 
+            전체검사자수 = max(total_tests, na.rm = T), 
+            신규검사자수 = sum(new_tests, na.rm = T),
+            전체백신접종자수 = max(total_vaccinations, na.rm = T),
+            백신접종자완료자수 = max(people_fully_vaccinated, na.rm = T),
+            부스터접종자수 = max(total_boosters, na.rm = T),
+            인구백명당백신접종완료률 = max(people_fully_vaccinated_per_hundred, na.rm = T),
+            인구백명당부스터접종자수 = max(total_boosters_per_hundred, na.rm = T)
+            ) |> 
+    ungroup() |>
+    mutate(십만명당사망자수 = round(전체사망자수 / 인구수 *100000, 5),
+           백신접종완료률 = 백신접종자완료자수 / 인구수)
+
+
+```
+
+```{r echo = FALSE}
+df_covid19 <- read_csv(file = "https://covid.ourworldindata.org/data/owid-covid-data.csv",
+                            col_types = cols(Date = col_date(format = "%Y-%m-%d")
+                                             )
+                            )
+max(df_covid19$date) - 100
+df_covid19_100 <- df_covid19 |> 
+  filter(iso_code %in% c('KOR', 'OWID_ASI', 'OWID_EUR', 'OWID_OCE', 'OWID_NAM', 'OWID_SAM', 'OWID_AFR')) |>
+  filter(date >= max(date) - 100) |>
+  mutate(location = case_when(
+    location == 'South Korea' ~ '한국', 
+    location == 'Asia' ~ '아시아', 
+    location == 'Europe' ~ '유럽', 
+    location == 'Oceania' ~ '오세아니아', 
+    location == 'North America' ~ '북미', 
+    location == 'South America' ~ '남미', 
+    location == 'Africa' ~ '아프리카')) |>
+  mutate(location = fct_relevel(location, '한국', '아시아', '유럽', '북미', '남미', '아프리카', '오세아니아')) |>
+  arrange(date)
+
+df_covid19_100_wide <- df_covid19_100 |>
+  select(date, location, new_cases, people_fully_vaccinated_per_hundred) |>
+  rename('date' = 'date', '확진자' = 'new_cases', '백신접종완료자' = 'people_fully_vaccinated_per_hundred') |>
+  pivot_wider(id_cols = date, names_from = location, 
+              values_from = c('확진자', '백신접종완료자')) |>
+  arrange(date)
+
+df_covid19_stat <- df_covid19 |> 
+  group_by(iso_code, continent, location) |>
+  summarise(인구수 = max(population, na.rm = T), 
+            인당GDP = max(gdp_per_capita, na.rm = T),
+            전체확진자수 = sum(new_cases, na.rm = T),
+            전체사망자수 = sum(new_deaths, na.rm = T), 
+            십만명당중환자실 = last(icu_patients_per_million),
+            재생산지수 = last(reproduction_rate),
+            봉쇄지수 = max(stringency_index, na.rm = T), 
+            전체검사자수 = max(total_tests, na.rm = T), 
+            신규검사자수 = sum(new_tests, na.rm = T),
+            전체백신접종자수 = max(total_vaccinations, na.rm = T),
+            백신접종자완료자수 = max(people_fully_vaccinated, na.rm = T),
+            부스터접종자수 = max(total_boosters, na.rm = T),
+            인구백명당백신접종완료률 = max(people_fully_vaccinated_per_hundred, na.rm = T),
+            인구백명당부스터접종자수 = max(total_boosters_per_hundred, na.rm = T)
+            ) |> 
+    ungroup() |>
+    mutate(십만명당사망자수 = round(전체사망자수 / 인구수 *100000, 5),
+           백신접종완료률 = 백신접종자완료자수 / 인구수)
+
+margins <- list(t = 50, b = 25, l = 25, r = 25)
+
+```
+
+-   python
+
+```{python}
+######################################  
+## python 코드
+## Covid19 데이터 셋
+import pandas as pd
+from datetime import datetime, timedelta
+from pandas.api.types import CategoricalDtype
+from matplotlib import pyplot as plt
+import plotly.graph_objects as go
+
+df_covid19 = pd.read_csv("https://covid.ourworldindata.org/data/owid-covid-data.csv")
+
+df_covid19['date'] = pd.to_datetime(df_covid19['date'], format="%Y-%m-%d")
+
+df_covid19_100 = df_covid19[(df_covid19['iso_code'].isin(['KOR', 'OWID_ASI', 'OWID_EUR', 'OWID_OCE', 'OWID_NAM', 'OWID_SAM', 'OWID_AFR'])) & (df_covid19['date'] >= (max(df_covid19['date']) - timedelta(days = 100)))]
+
+
+df_covid19_100.loc[df_covid19_100['location'] == 'South Korea', "location"] = '한국'
+df_covid19_100.loc[df_covid19_100['location'] == 'Asia', "location"] = '아시아'
+df_covid19_100.loc[df_covid19_100['location'] == 'Europe', "location"] = '유럽'
+df_covid19_100.loc[df_covid19_100['location'] == 'Oceania', "location"] = '오세아니아'
+df_covid19_100.loc[df_covid19_100['location'] == 'North America', "location"] = '북미'
+df_covid19_100.loc[df_covid19_100['location'] == 'South America', "location"] = '남미'
+df_covid19_100.loc[df_covid19_100['location'] == 'Africa', "location"] = '아프리카'
+
+ord = CategoricalDtype(categories = ['한국', '아시아', '유럽', '북미', '남미', '아프리카', '오세아니아'], ordered = True)
+
+df_covid19_100['location'] = df_covid19_100['location'].astype(ord)
+
+df_covid19_100 = df_covid19_100.sort_values(by = 'date')
+
+df_covid19_100_wide = df_covid19_100.loc[:,['date', 'location', 'new_cases', 'people_fully_vaccinated_per_hundred']].rename(columns={'new_cases':'확진자', 'people_fully_vaccinated_per_hundred':'백신접종완료자'})
+
+df_covid19_100_wide = df_covid19_100_wide.pivot(index='date', columns='location', values=['확진자', '백신접종완료자']).sort_values(by = 'date')
+
+df_covid19_100_wide.columns = ['확진자_한국', '확진자_아시아', '확진자_유럽', '확진자_북미', '확진자_남미', '확진자_아프리카','확진자_오세아니아',
+                              '백신접종완료자_한국', '백신접종완료자_아시아', '백신접종완료자_유럽', '백신접종완료자_북미', '백신접종완료자_남미', '백신접종완료자_아프리카','백신접종완료자_오세아니아']
+
+df_covid19_stat = df_covid19.groupby(['iso_code', 'continent', 'location']).agg(
+    인구수 = ('population', 'max'),
+    인당GDP = ('gdp_per_capita', 'max'), 
+    전체확진자수 = ('new_cases', 'sum'),
+    전체사망자수 = ('new_deaths', 'sum'), 
+    십만명당중환자실 = ('icu_patients_per_million', 'last'),
+    재생산지수 = ('reproduction_rate', 'last'),
+    봉쇄지수 = ('stringency_index', 'max'), 
+    전체검사자수 = ('total_tests', 'max'), 
+    신규검사자수 = ('new_tests', 'sum'),
+    전체백신접종자수 = ('total_vaccinations', 'max'),
+    백신접종자완료자수 = ('people_fully_vaccinated', 'max'),
+    부스터접종자수 = ('total_boosters', 'max'),
+    인구백명당백신접종완료률 = ('people_fully_vaccinated_per_hundred', 'max'),
+    인구백명당부스터접종자수 = ('total_boosters_per_hundred', 'max')
+)
+
+df_covid19_stat['십만명당사망자수'] = round(df_covid19_stat['전체사망자수'] / df_covid19_stat['인구수'] *100000, 5)
+
+df_covid19_stat['백신접종완료률'] = df_covid19_stat['백신접종자완료자수'] / df_covid19_stat['인구수']
+```
+
+## 대학 학과 취업률 데이터 셋
+
+최근 청년층 실업 문제가 사회적 문제로 대두됨에 따라 대학 졸업생의 취업률이 매우 중요하게 활용되고 있는 데이터이다. 이 데이터는 대학 입학을 앞둔 수험생이나 학부모에게 대학 진학을 위한 학과 선택에 중요한 데이터이고 대학 입장에서는 학생들의 진로 지도를 위해 중요하게 사용되는 데이터이다. 이 데이터는 교육통계서비스 홈페이지에서 제공한다.[^3]
+
+[^3]: 해당 데이터는 교육통계 서비스 홈페이지<https://kess.kedi.re.kr/contents/dataset?itemCode=04&menuId=m_02_04_03_02&tabId=m3>에서 다운로드를 받거나 필자의 블로그(2stndard.tistory.com)에서 다운로드 받을 수 있다.
+
+취업률 데이터 셋은 다음과 같이 데이터를 로딩하고 전처리한다.
+
+-   R
+
+```{r message = FALSE, warning = FALSE}
+## R 코드
+
+df_취업률 <- read_excel('d:/R/data/2020년 학과별 고등교육기관 취업통계.xlsx', 
+                     ## '학과별' 시트의 데이터를 불러오는데,
+                     sheet = '학과별',
+                     ## 앞의 13행을 제외하고
+                     skip = 13, 
+                     ## 첫번째 행은 열 이름으로 설정
+                     col_names = TRUE, 
+                     ## 열의 타입을 설정, 처음 9개는 문자형으로 다음 79개는 수치형으로 설정
+                     col_types = c(rep('text', 9), rep('numeric', 79)))
+
+## df_취업률에서 첫번째부터 9번째까지의 열과 '계'로 끝나는 열을 선택하여 다시 df_취업률에 저장
+df_취업률 <- df_취업률 |> 
+  select(1:9, ends_with('계'), '입대자')
+
+## df_취업률에서 졸업자가 500명 이하인 학과 2000개 샘플링
+df_취업률_2000 <- df_취업률 |> 
+  filter(졸업자_계 < 500) |>
+  mutate(id = row_number()) |>
+  filter(row_number() %in% seq(from = 1, to = nrow(df_취업률), by = 4))
+
+## 열 이름을 적절히 설정
+names(df_취업률_2000)[10:12] <- c('졸업자수', '취업률', '취업자수')
+
+```
+
+-   python
+
+```{python}
+######################################   
+## python 코드
+## 대학 학과 취업률 데이터 셋
+
+df_취업률 = pd.read_excel("d:/R/data/2020년 학과별 고등교육기관 취업통계.xlsx", 
+                           sheet_name = '학과별',
+                           skiprows=(13), 
+                           header = 0)
+
+df_취업률 = pd.concat([df_취업률.iloc[:, 0:8], 
+                    df_취업률.loc[:, df_취업률.columns.str.endswith('계')], 
+                    df_취업률.loc[:, '입대자']], 
+                   axis = 1
+                   )
+
+df_취업률_2000 = df_취업률.loc[(df_취업률['졸업자_계'] < 500)]
+
+df_취업률_2000 = df_취업률_2000.iloc[range(0, len(df_취업률_2000.index) , 4)]
+
+df_취업률_2000 = df_취업률_2000.rename(columns = {'졸업자_계':'졸업자수', '취업률_계':'취업률', '취업자_합계_계':'취업자수'})
+
+```
+
+# plotly의 구조
+
+`plotly` 객체는 plotly.js에서 정의된 JSON 스키마로 저장된다. 이 스키마는 트리 형태로 구성되어 있는데 각 노드는 속성(attribute)로 불리는 값을 가지게 되고 이들 속성들이 모여서 전체 그림(Figure)를 구성한다.
+
+`plotly` 객체 트리의 루트 노드에 바로 아래인 최고 레벨 속성은 'data', 'layout', 'frame'의 세 가지 속성이다. 이 세 가지 속성의 세부 속성들이 설정되어 시각화를 구성한다. 이들 속성들은 다시 부모 속성과 자식 속성으로 구성하는데 이 구성 방법은 R과 python이 다소 다르다.
+
+R의 경우 속성이름에 '='을 사용해 속성 값을 할당하고 같은 부모를 가지는 자식 속성들은 R의 list 데이터 구조로 구성하여 표현한다. 예를 들어 `layout(title = list(text = '타이틀 제목'))`이라는 코드는 'layout' 루트 노드에 하위 노드인 'title' 속성의 하위 노드인 text 속성을 20으로 설정하는 코드이다.
+
+python의 경우는 하위 속성값을 python의 딕셔너리 데이터 구조를 사용해 구성한다. 딕셔너리는 `{}`를 사용할 수도 있고 `dict()`를 사용할 수도 있다. `{}`를 사용하면 속성명과 속성값을 `:`을 사용하여 할당하고 `dict()`를 사용하면 속성명과 속성값은 `=`을 사용하여 설정해 준다.
+
+R에서 list로 python에서 딕셔너리로 설정한 값들을 직접 접근하기 위해서는 '.'을 사용해 속성값의 구조적 전체 경로(Path)를 통해 접근할 수 있다. 예를 들어 시각화 전체 제목의 색상에 접근하려면 `layout.title.font.color`를 사용하여 접근할 수 있다.
+
+`plotly`로 시각화를 만들기 위해서는 먼저 `plot_ly()`나 `plotly.graph_object.Figure()`를 사용하여 초기화하고 'data', 'layout', 'frame'의 세 가지 루트 속성으로부터 파생된 하위 속성들을 list나 dict 형태로 구성함으로서 시각화를 생성한다.
+
+## plotly 초기화
+
+`plotly`를 사용하기 위해서는 가장 먼저 해야하는 것이 `plotly` 객체의 초기화이다. 이는 R과 python에서 모두 수행해야 하는 과정이다. `plotly`객체를 초기화하면 plotly.js에서 사용될 수 있는 JSON 형태의 객체가 생성된다. 이 객체에 다양한 시각화 속성들을 추가함으로써 전체 시각화를 완성한다.
+
+-   R
+
+R에서 `plotly`를 초기화하기 위해 `plot_ly()`를 사용한다. `plot_ly()`는 특별한 매개변수 없이 사용이 가능하지만 일반적으로 사용할 데이터프레임을 바인딩하는 경우가 많다. `tidyverse`에서 제공하는 `%>%`나 R base에서 제공하는 `|>`를 사용하여 `plot_ly()`에 사용할 데이터프레임을 설정하거나 `plot_ly()`의 매개변수로 데이터프레임을 전달하면 초기화된 `plotly` 객체가 생성된다.
+
+```{r fig.cap = 'R의 plot_ly()를 사용한 plotly 초기화'}
+## R에서 plotly 객체 초기화
+## plot_ly(df_covid19_100)와 동일
+df_covid19_100 |> 
+  plot_ly()
+
+```
+
+-   python
+
+python에서 `plotly`를 초기화하는 방법은 plotly.graph_object을 사용하는 것과 plotly.express를 사용하는 두 가지 방법을 제공한다. `plotly`에서 제공하는 모든 기능을 사용하기 위해서는 plotly.graph_object를 사용해야 하지만 사용의 편이성이 떨어진다. 반면 plotly.express는 사용이 매우 간편하지만 `plotly`에서 제공하는 모든 기능을 사용할 수 없다. 따라서 상황에 따라 잘 구분해서 사용해야 한다. 이번 장에서는 plotly.graph_object를 사용하는 방법을 사용하고 다음 장부터는 plotly.express 위주로 사용하겠다.
+
+python에서 plotly.graph_object를 사용하여 `plotly`를 초기화하기 위해서는 `plotly.graph_objects.Figure()`를 사용한다. 앞서 R에서는 `plotly`를 초기화할때 사용하는 데이터프레임을 바인딩했지만 python에서는 초기화때 데이터프레임을 바인딩하지 않는다.
+
+```{python eval = FALSE}
+## python에서 plotly 객체 초기화
+import plotly.graph_objects as go
+
+go.Figure()
+
+```
+
+![python의 Figure()를 사용한 plotly 초기화](D:/R/git/datavisualization/plotly/chap2/figure_p.png)
+
+## 'data' 속성
+
+초기화된 `plotly` 구조에서 사용하는 첫 번째 레벨 속성인 'data' 속성은 그 하위 속성들이 많은데, 이 중 가장 중요한 하위 속성이 'trace' 속성이다. 'trace' 속성은 `plotly`로 시각화할 수 있는 그래픽적 데이터 표현 방법을 지칭한다. `plotly`에서는 'scatter', 'pie', 'bar' 등의 40개가 넘는 트레이스를 제공한다.
+
+40여가지 트레이스 중에 사용하고자 하는 트레이스를 설정하기 위해서 'type' 속성을 사용한다. 예를 들어 R과 python 모두 `add_trace()`를 사용하여 트레이스를 계속 추가할 수 있는데, `add_trace()`를 사용하기 위해서는 반드시 'type' 속성으로 트레이스 종류를 설정해야 한다. 하지만 'type'을 설정하지 않더라도 X축과 Y축에 바인딩된 변수들을 계산하여 자동적으로 설정하기도 하고, 각각의 트레이스에 특화된 개별 함수를 사용한다면(예를 들어 `add_lines()`나 `px.line()` 등) 'type' 속성을 사용할 필요는 없다.
+
+-   R
+
+R에서는 'data' 속성을 바로 설정할 수 있는 방법을 제공하지 않는다. 하지만 `plotly`패키지의 `plot_ly()`를 사용하면 이와 동일한 효과를 낼 수 있다. `plot_ly()`의 매개 변수로 'data'의 세부 속성들을 설정할 수 있는데 세부 속성에 다시 하위 세부 속성들이 포함될 경우 R의 기본 데이터 타입인 'list'를 사용하여 묶어서 설정한다. 다음의 코드는 `plot_ly()`를 사용하여 'data' 속성의 하부 속성인 'trace'를 'scatter', 'mode'를 'markers+lines'(산점도와 선그래프), 'marker'(점) 속성을 list로 묶어 'color' 속성을 설정하고 'line'(선) 속성을 list로 묶어 'color'와 'dash' 속성을 설정한 시각화를 보이고 있다.
+
+```{r fig.cap = 'R의 plot_ly를 사용한 plotly 시각화'}
+## 긴 형태의 100일 코로나19 데이터에서
+df_covid19_100 |> 
+  ## 한국 데이터만을 필터링 
+  filter(iso_code == 'KOR') |>
+  ## X축에 data, Y축에 new_cases를 매핑하여 plot_ly()로 시각화 생성
+  plot_ly(type = 'scatter', x = ~date, y = ~new_cases, 
+          mode = 'markers+lines', 
+          marker = list(color = '#264E86'), 
+          line = list(color = '#5E88FC', 
+                      dash = 'dash'
+                      )
+          )
+
+```
+
+-   python
+
+반면, python에서는 plotly.graph_object의 `Figure()`를 사용한다. 위의 R과 같은 시각화를 만드는 코드는 다음과 같다. `go.Figure()`에 'data' 속성을 설정하기 위해서는 각각의 'trace'의 속성으로 구성된 딕셔너리의 리스트로 설정한다. 하지만 만약 단 하나의 'trace' 딕셔너리만 있다면 리스트(`[]`)로 묶어주지 않아도 무방하다. 다음의 코드는 위의 R로 만든 시각화와 동일한 시각화를 만든다. `go.Figure()`의 'data' 속성에 'type', 'mode', 'x', 'y', 'marker', 'line' 속성을 가지는 트레이스 딕셔너리를 설정하고 이 중 'marker'와 'line' 속성은 다시 세부속성을 가지기 때문에 이 세부 속성을 설정하기 위한 딕셔너리를 설정한다. 여기에는 하나의 'trace' 뿐이기 때문에 `[]`를 사용하여 리스트로 묶지 않아도 되지만 묶어주는게 코드의 일관성을 위해 좋다.
+
+```{python}
+import plotly.graph_objects as go
+import plotly.offline as py
+
+fig = go.Figure(
+    data = [
+      {
+        'type' : 'scatter',
+        'mode' : 'markers+lines',
+        'x' : df_covid19_100.loc[df_covid19_100['iso_code'] == 'KOR', 'date'],
+        'y' : df_covid19_100.loc[df_covid19_100['iso_code'] == 'KOR', 'new_cases'], 
+        'marker' : {
+            'color' : '#264E86'
+        }, 
+        'line' : {
+            'color' : '#5E88FC',
+            'dash' : 'dash'
+        }
+      }
+    ]
+)
+
+```
+
+![python의 data 속성을 사용한 plotly 시각화](D:/R/git/datavisualization/plotly/chap2/data_p.png)
+
+## 'layout' 속성
+
+'layout' 속성은 데이터를 표현하는 'trace'와 관련되지 않는 시각화의 나머지 속성들을 정의하는 설정들을 표현한다. 'layout' 에서 설정할 수 있는 속성은 시각화의 차원 축(2차원, 3차원), 여백, 제목, 축, 범례, 컬러바(색 범례), 주석 등 이다.
+
+-   R
+
+R에서 'layout' 속성을 설정하기 위해서는 `layout()`을 사용한다. 다만 `layout()`을 사용하기 위해서는 최소한 하나 이상의 'trace'가 설정되어야 한다. 다음의 코드는 앞서 그린 시각화에 'title' 속성으로 시각화 제목, 'xaxis' 속성으로 X축 설정, 'yaxis' 속성으로 Y축 설정, 'margin' 속성으로 여백 설정을 하고 있다. 이 중 'xaxis'와 'yaxis'속성은 세부 속성이 있기 때문에 다시 list로 묶어서 설정하였다.
+
+```{r fig.cap='R의 layout 속성을 사용한 plotly 시각화'}
+margins_R <- list(t = 50, b = 25, l = 25, r = 25)
+
+## 긴 형태의 100일 코로나19 데이터에서
+df_covid19_100 |> 
+  ## 한국 데이터만을 필터링 
+  filter(iso_code == 'KOR') |>
+  ## X축에 data, Y축에 new_cases를 매핑하여 plot_ly()로 시각화 생성
+  plot_ly(type = 'scatter', x = ~date, y = ~new_cases, 
+          mode = 'markers+lines', 
+          marker = list(color = '#264E86'), 
+          line = list(color = '#5E88FC', 
+                      dash = 'dash'
+                      )
+          ) |>
+  layout(
+    title = "코로나 19 발생 현황",
+    xaxis = list(
+      title = "날짜",
+      showgrid = F),
+    yaxis = list(title = "확진자수"), 
+    margin = margins_R
+    )
+
+```
+
+-   python
+
+python에서 'layout' 속성의 설정은 'data' 속성과 같이 `Figure()`에 속성들로 구성된 딕셔너리를 'layout'에 설정한다.
+
+```{python eval = FALSE}
+margins_python = {'t' : 50, 'b' : 25, 'l' : 25, 'r' : 25}
+
+fig = go.Figure(
+    data = [
+      {
+        'type' : 'scatter',
+        'mode' : 'markers+lines',
+        'x' : df_covid19_100.loc[df_covid19_100['iso_code'] == 'KOR', 'date'],
+        'y' : df_covid19_100.loc[df_covid19_100['iso_code'] == 'KOR', 'new_cases'], 
+        'marker' : {
+            'color' : '#264E86'
+        }, 
+        'line' : {
+            'color' : '#5E88FC',
+            'dash' : 'dash'
+        }
+      }
+    ], 
+    layout = {
+      'title' : "코로나 19 발생 현황",
+      'xaxis' : {
+        'title' : "날짜",
+        'showgrid' : False},
+      'yaxis' : {'title' : "확진자수"}, 
+      'margin' : margins_python
+      }
+)
+
+fig.show()
+```
+
+![python의 layout 속성을 사용한 plotly 시각화](D:/R/git/datavisualization/plotly/chap2/layout_p.png)
+
+## 'frame' 속성
+
+'frame' 속성은 `plotly`의 애니메이션 기능과 관련된 속성 값을 설정하는 노드이다. 이 책에서는 다루지 않겠다.
+
+## 'plotly' 구조 확인
+
+앞서 언급했다시피 `plotly`는 JSON 형태의 데이터 타입으로 구성된다. 따라서 `plotly`로 만들어진 데이터는 그래프의 형태로 시각화 할수도 있지만 `plotly` 데이터의 구조를 직접 볼 수도 있다. 이 구조를 확인하면 `plotly`의 속성 설정을 이해하는데 도움을 받을 수 있다.
+
+-   R
+
+R에서 `plotly`의 구조를 확인하기 위해서는 `plotly_json()`을 사용한다.
+
+```{r}
+df_covid19_100 |> 
+  ## 한국 데이터만을 필터링 
+  filter(iso_code == 'KOR') |>
+  ## X축에 data, Y축에 new_cases를 매핑하여 plot_ly()로 시각화 생성
+  plot_ly(type = 'scatter', x = ~date, y = ~new_cases, 
+          mode = 'markers+lines', 
+          marker = list(color = '#264E86'), 
+          line = list(color = '#5E88FC', 
+                      dash = 'dash'
+                      )
+          ) |>
+  plotly_json()
+
+```
+
+-   python
+
+python에서는 `print()`를 사용하여 데이터 구조를 확인할 수 있다.
+
+```{python}
+import plotly.graph_objects as go
+
+fig = go.Figure(
+    data = [
+      {
+        'type' : 'scatter',
+        'mode' : 'markers+lines',
+        'x' : df_covid19_100.loc[df_covid19_100['iso_code'] == 'KOR', 'date'],
+        'y' : df_covid19_100.loc[df_covid19_100['iso_code'] == 'KOR', 'new_cases'], 
+        'marker' : {
+            'color' : '#264E86'
+        }, 
+        'line' : {
+            'color' : '#5E88FC',
+            'dash' : 'dash'
+        }
+      }
+    ]
+)
+
+print(fig)
+
+```
+
+# plotly 사용하기
+
+앞에서 `plotly` 객체의 구조에 대해 살펴보았다. `plotly`는 plolty.js에서 사용할 수 있는 JSON 형태의 객체이기 때문에 `plotly`는 이 JSON 형태의 결과물을 시각화로 보여줄 뿐 결국은 데이터 구조일 뿐이다. 따라서 `plotly`를 사용하여 시각화 한다는 것은 'data', 'layout', 'frame' 속성 값들을 설정하여 JSON 구조를 만드는 것이다.
+
+## data : trace의 설정
+
+앞서 설명한 바와 같이 `plotly` 객체의 구조에서 시각화해야하는 데이터를 정의하는 속성은 'data' 속성이다. 하지만 이 속성은 점이든 막대이든 원이든 특정한 도형으로 표현하여야 하는데 이렇게 데이터를 도형으로 표현하는 각각의 레이어를 트레이스라고 한다. 따라서 'data' 속성은 'trace'들을 모아 놓은 것이다.
+
+`plotly`를 시작하려면 먼저 `plolty`를 초기화해야 한다. 앞에서 본 것과 같이 초기화하는 `plot_ly()`나 `Figure()`에서 'data' 속성의 하위 속성을 설정하여 `plotly` 시각화를 그릴수 있다. 하지만 이 방법을 사용하면 코드의 길이가 길어지고 리스트와 딕셔너리 등 `plotly` 구조에 맞게 괄호들을 설정해야 하기 때문에 매우 복잡해진다.
+
+따라서 이 방법 보다는 `add_trace()`를 사용하여 초기화된 `plotly` 객체에 트레이스를 추가하는 방법이 많이 사용된다.
+
+-   R
+
+R에서 트레이스를 설정하기 위해서는 `add_trace()`를 사용하거나 `add_markers()`, `add_bars()`와 같은 트레이스에 특화된에 함수를 사용하는 방법이 있다. 이들 함수를 사용하여 바로 트레이스와 관련된 속성들을 설정한다. 여기서는 `add_trace()`를 사용하는 방법을 위주로 설명하고 다음장에서는 트레이스에 특화된 함수를 설명하겠다. `add_trace()`에서 설정하는 트레이스 속성 중 루트 노드에 해당하는 첫 번째 레벨의 속성은 매개변수처럼 `=`을 사용하여 속성명에 속성값을 설정한다. 만약 이 첫 번쨰 레벨의 속성이 하위 속성들로 구성되어야 한다면 `list()`를 사용하여 리스트 데이터 타입으로 하위 속성들을 설정한다.
+
+```{r}
+df_취업률_2000 |> 
+  filter(졸업자수 < 500) |> 
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'markers', 
+            x = ~졸업자수, y = ~취업자수, 
+            marker = list(size = 3, color = 'darkblue'))
+
+```
+
+-   python
+
+python에서 트레이스를 설정하기 위해서는 여러 가지 방법이 있다. `plotly`를 그리기 위해서는 먼저 'plotly.graph_object'를 사용할 것인지, 'plotly.express'를 사용할 것인지에 따라 나뉜다. 'plotly.express'는 다음 장에서 설명하고 여기서는 `add_trace()`를 사용하여 'plotly.graph_object'를 사용해서 `plotly`를 그리는 두 가지 방법을 설명한다.
+
+'plotly.graph_object'를 사용하여 `plotly`를 그리는 첫 번째 방법은 `add_trace()`의 매개변수로 딕셔너리로 구성된 해당 트레이스의 하위 속성들을 설정한다.
+
+```{python evel = FALSE}
+fig = go.Figure()
+
+fig.add_trace({
+    'type' : 'scatter',
+        'mode' : 'markers',
+        'x' : df_취업률_2000['졸업자수'],
+        'y' : df_취업률_2000['취업자수'], 
+        'marker' : {
+            'color' : 'darkblue'
+        }
+})
+
+```
+
+두 번째 방법은 `add_trace()`의 매개변수로 'plotly.graph_object'에서 제공하는 각각의 트레이스 함수를 사용하는 것이다. 'plotly.graph_object'에서 제공하는 각각의 트레이스 함수는 약 90여개이다. 이들을 다 외울 수는 없으니 plotly 홈페이지에서 확인하여 사용하여야 한다. 하지만 이 트레이스 함수를 사용하는 것도 두 가지 방법이 있다. 첫 번쨰 방법은 앞의 `add_trace()`에 딕셔너리를 설정한 것과 같이 트레이스 함수에 트레이스 속성들로 구성된 딕셔너리를 설정하는 방법이다.
+
+```{python eval = FALSE}
+fig = go.Figure()
+
+fig.add_trace({
+    'type' : 'scatter',
+        'mode' : 'markers',
+        'x' : df_취업률_2000['졸업자수'],
+        'y' : df_취업률_2000['취업자수'], 
+        'marker' : {
+            'color' : 'darkblue'
+        }
+})
+
+```
+
+두 번쨰는 `=`을 사용하여 속성에 속성값을 직접 할당하는 방법이다. 이 방법은 각각의 트레이스의 루트노드인 첫 번째 레벨 속성값에 한해 설정할 수 있고 세부 속성으로 구성된 속성은 또 다시 딕셔너리로 설정하여야 한다. 그런데 이 딕셔너리를 설정하는데 에도 두가지 방법이 있다. 첫 번째 방법은 `{}`를 사용하여 딕셔너리를 구성하는 방법으로 이 방법을 사용할 때는 속성명을 `''`나 `""`로 묶어주어야 하고 할당 기호로 `:`을 사용한다.
+
+```{python eval = FALSE}
+fig = go.Figure()
+
+fig.add_trace(go.Scatter({
+    'type' : 'scatter',
+    'mode' : 'markers',
+    'x' : df_취업률_2000['졸업자수'],
+    'y' : df_취업률_2000['취업자수'],
+    'marker' : {'color' : 'darkblue'}}
+))
+
+```
+
+두 번째 방법은 `dict()`를 사용하여 딕셔너리를 구성하는데 이 방법을 사용할 때는 속성명에 따옴표 없이 사용하고 할당 기호로 `=`을 사용한다.
+
+```{python eval = FALSE}
+fig = go.Figure()
+
+fig.add_trace(go.Scatter(
+    type = 'scatter',
+    mode = 'markers',
+    x = df_취업률_2000['졸업자수'],
+    y = df_취업률_2000['취업자수'],
+    marker = dict(color = 'darkblue')
+))
+
+```
+
+## 트레이스 공통 속성
+
+앞서 설명한 바와 같이 `plotly`에서는 40여 개가 넘는 트레이스를 제공한다. 그 트레이스마다 사용되는 속성들이 다르지만 공통적으로 사용되는 속성들이 있다. 각각의 트레이스에서 공통적으로 사용되는 대표적인 속성들은 다음과 같다.
+
+### type
+
+'trace' 설정에 가장 중요한 속성이 'type' 속성이다. 'type' 속성은 데이터를 표현할 방식을 설정하기 때문에 시각화의 가장 중요한 형태를 결정하는 속성이다. `plotly`에서 지원하는 주요 'trace'는 다음과 같다.
+
+::: {custom-style="comment"}
+-   scatter 타입 : 'scatter', 'scattergl'\
+-   bar 타입 : 'bar', 'funnel', 'waterfall'\
+-   집계된 bar 타입 : 'histogram'\
+-   1차원 분포 타입 : 'box', 'violin'\
+-   2차원 밀도 분포 타입 : 'histogram2d', 'histogram2dcontour'\
+-   매트릭스 타입 : 'image', 'heatmap', 'contour'\
+-   주가 타입 : 'olhc', 'candlestick'\
+:::
+
+### mode
+
+'mode'는 'type'이 'scatter'인 스캐터 타입의 트레이스에서 사용하는 속성이다. 스캐터 타입의 트레이스는 점, 선, 문자를 사용하여 데이터를 표현한다. 따라서 스캐터 차트를 그릴때는 세 가지 타입의 스캐터 타입중 어떤 것을 사용할지를 설정해야하는데, 이것을 설정하는 속성이 'mode'이다. 'mode'는 다음의 네 가지가 있는데 이 'mode'들은'+' 기호를 사용하여 여러개의 'mode'를 동시에 사용할 수 있다.
+
+| mode    | 설명                             |
+|---------|----------------------------------|
+| markers | 데이터를 점으로 표시             |
+| lines   | 데이터를 서로 이어주는 선을 표시 |
+| text    | 데이터를 문자열로 표시           |
+| none    | 데이터를 표시하지 않음           |
+
+### x, y
+
+'trace' 설정에서 2차원 데카르트 좌표축에 데이터를 매핑하는 속성이 `x`, `y`이다. 데카르트 좌표계를 사용하는 'trace'에서 가장 기본적으로 사용되는 속성이며 하위 속성은 없다.
+
+-   R
+
+R에서는 'x', 'y'에 변수를 할당 가능한 변수는 데이터프레임 열, 리스트, 벡터 등이다. 할당할 때 주의 해아할 것은 반드시 `~`를 변수명 앞에 붙여줘야 한다.
+
+```{r fig.cap='plotly 기본 산점도 생성'}
+## df_취업률_2000에서 
+df_취업률_2000 |> 
+  ## X축은 졸업자수, Y축은 취업자수로 매핑한 plotly 객체 생성
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'markers', 
+            x = ~졸업자수, y = ~취업자수)
+
+```
+
+-   python
+
+python에서는 'x', 'y' 속성에 리스트(list), 넘파이 배열(numpy array), 수치형 판다스 시리즈(pandas series), 수치형 시리즈(series), 문자열(strings) 날짜와 시간형(datetimes) 등을 설정할 수 있다.
+
+```{python eval = FALSE}
+fig = go.Figure()
+
+fig.add_trace(
+    {'type' : 'scatter',
+     'mode' : 'markers',
+     'x': df_취업률_2000['졸업자수'],
+     'y': df_취업률_2000['취업자수']
+        }
+)
+fig.show()
+
+```
+
+![python의 Figure()를 사용한 plotly 초기화](D:/R/git/datavisualization/plotly/chap2/xy_p.png)
+
+### name
+
+'name'은 `plotly`에서 사용되는 각각의 트레이스의 이름을 설정하는 속성이다. 'name'은 범례와 호버에 해당 데이터를 인식하기 위해 나타난다.
+
+-   R
+
+R에서는 'name' 속성에 단일 문자열을 할당할 수도 있고, 'x', 'y'과 같이 `plotly`에 바인딩된 데이터 프레임의 문자형 열, 문자형 리스트, 문자형 벡터를 사용할 수도 있다. 다만 데이터프레임 열, 리스트, 벡터를 사용한다면 `plotly`포 표시되는 데이터에 1:1 매핑되어야 한다.
+
+```{r eval = FALSE}
+df_취업률_2000 |>
+  ## X축은 졸업자수, Y축은 취업자수, name은 대계열로 매핑한 plotly 객체 생성
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'markers', 
+            x = ~졸업자수, y = ~취업자수, name = ~대계열)
+
+```
+
+```{r echo = FALSE, fig.cap = 'trace 이름 매핑'}
+df_취업률_2000 |>
+  ## X축은 졸업자수, Y축은 취업자수, name은 대계열로 매핑한 plotly 객체 생성
+  plot_ly(x = ~졸업자수, y = ~취업자수, name = ~대계열, color = ~대계열, colors = 'Blues')
+
+```
+
+-   python
+
+python에서 'name' 속성을 사용하는데는 R보다는 다소 번거롭다. python에서 'name'에 설정이 가능한 데이터 타입은 단일 문자열(string)만을 설정할 수 있다. 따라서 여러 개의 트레이스를 사용하려면 루프를 사용하여 각각의 트레이스의 'name'을 각각 설정해야 한다.
+
+```{python eval = FALSE}
+fig = go.Figure()
+
+for 대계열, group in df_취업률_2000.groupby('대계열'):
+    fig.add_trace({
+      'type' : 'scatter',
+      'mode' : 'markers',
+      'x': group['졸업자수'],
+      'y': group['취업자수'], 
+      'name' : 대계열
+      })
+fig.show()
+
+```
+
+![](D:/R/git/datavisualization/plotly/chap2/name_p.png)
+
+### text
+
+데이터 시각화에서 데이터는 다양한 그래픽적 기하 도형으로 표현되기 때문에 데이터의 정확한 값을 측정하는데 어려움이 있다. 이를 보완하기 위해 데이터 시각화에 데이터 값을 표기하는 경우가 많은데, `plotly`에서 지원하는 대부분의 트레이스에서는 'text' 속성을 사용해서 시각화의 데이터 값을 표현할 수 있다. 표시되기를 원하는 변수를 'text' 속성에 할당함으로써 데이터 값을 표시할 수 있으며 'textposition'과 'texttemplate'를 사용하여 표시되는 값의 위치나 표현 형태에 대한 세부 속성을 설정할 수 있다.
+
+-   R
+
+R에서 'text' 속성에 할당할 수 있는 변수는 단일 문자열이나 데이터 프레임의 문자형 열, 문자형 리스트, 문자형 벡터를 사용할 수 있다. 'text'에 단일 문자열을 할당하면 모든 데이터에 설정된 문자열이 표시되고 데이터 프레임의 문자형 열, 문자형 리스트, 문자형 벡터가 설정되면 문자열 벡터와 표현되는 데이터가 1:1로 매핑되어 해당 데이터에 매핑된 문자열이 표시된다.
+
+```{r}
+## 긴 형태의 100일간 코로나19 데이터 중에
+df_covid19_100 |>
+  ## 국가명으로 그룹화
+  group_by(location) |>
+  ## 확진자수의 합계를 new_cases로 산출
+  summarise(new_cases = sum(new_cases)) |>
+  ## X축을 location, Y축과 text를 new_case로 매핑
+  plot_ly() |>
+  add_trace(type = 'bar', x = ~location, y = ~new_cases, text = ~new_cases) 
+
+```
+
+-   python
+
+python에서 'text' 속성에는 문자열 또는 문자열 배열을 할당할 수 있다. 앞서 'name' 속성때는 문자열 배열을 설정할 수 없었기 떄문에 루프를 사용했지만 'text' 속성은 문자열 배열을 사용할 수 있기 때문에 표현되는 데이터에 1:1로 매핑되는 문자를 표시할 수 있다.
+
+```{python eval = FALSE}
+fig = go.Figure()
+
+temp = df_covid19_100.groupby('location').agg(new_cases = ('new_cases', 'sum'))
+
+fig.add_trace({
+      'type' : 'bar',
+      'x': temp.index,
+      'y': temp['new_cases'],
+      'text' : temp['new_cases']
+      }
+    )
+
+fig.show()
+
+```
+
+![](D:/R/git/datavisualization/plotly/chap2/text_p.png)
+
+### textposition
+
+'textposition'는 'text'의 위치를 설정하는 속성이다. 'textposition'에는 'inside', 'outside', 'auto', 'none'의 네 가지를 설정할 수 있다. 'inside'는 막대의 안쪽에 텍스트를 위치시킨다. 이 경우 막대의 너비에 따라 가로로 표시될 수도 있고 세로로 표시될 수도 있다. 'outside'는 막대 끝의 바깥에 텍스트를 위치시키는데 마찬가지로 막대의 너비에 따라 가로 혹은 세로로 표기될 수 있다. 또 'outside'는 막대가 쌓이는 'stack' 형의 막대 그래프에서는 'inside'와 동일하게 표시된다. 'auto'는 `plotly`에서 자동적으로 계산된 형태로 텍스트가 표시된다. 'none'은 텍스트가 표시되지 않는다.
+
+-   R
+
+```{r eval = FALSE}
+## 긴 형태의 100일간 코로나19 데이터 중에
+df_covid19_100 |>
+  ## 국가명으로 그룹화
+  group_by(location) |>
+  ## 확진자수의 합계를 new_cases로 산출
+  summarise(new_cases = sum(new_cases)) |>
+  ## X축을 location, Y축과 text를 new_case로 매핑
+  plot_ly() |>
+  add_trace(type = 'bar', x = ~location, y = ~new_cases, text = ~new_cases, 
+            ## textposition을 'inside'로 설정
+            textposition = 'inside')
+) 
+
+df_covid19_100 |>
+  group_by(location) |>
+  summarise(new_cases = sum(new_cases)) |>
+  plot_ly() |>
+  add_trace(type = 'bar', x = ~location, y = ~new_cases, text = ~new_cases, 
+           ## textposition을 'outside'로 설정
+           textposition = 'outside')
+
+df_covid19_100 |>
+  group_by(location) |>
+  summarise(new_cases = sum(new_cases)) |>
+  plot_ly() |>
+  add_trace(type = 'bar', x = ~location, y = ~new_cases, text = ~new_cases, 
+           ## textposition을 'auto'로 설정
+           textposition = 'auto')
+
+df_covid19_100 |>
+  group_by(location) |>
+  summarise(new_cases = sum(new_cases)) |>
+  plot_ly() |>
+  add_trace(type = 'bar', x = ~location, y = ~new_cases, text = ~new_cases, 
+           ## textposition을 'none'으로 설정
+           textposition = 'none')
+```
+
+```{r echo = FALSE, fig.cap='textposition에 설정 결과'}
+p1 <- df_covid19_100 |>
+  group_by(location) |>
+  summarise(new_cases = sum(new_cases)) |>
+  plot_ly(x = ~location, y = ~new_cases, text = ~new_cases, 
+          textposition = 'inside', 
+          textfont = list(color = 'white', size = 5.5), color = I('#1f77b4')) |> 
+  layout(margin = margins)
+
+p2 <- df_covid19_100 |>
+  group_by(location) |>
+  summarise(new_cases = sum(new_cases)) |>
+  plot_ly(x = ~location, y = ~new_cases, text = ~new_cases, 
+          textposition = 'outside', 
+          textfont = list(color = 'black', size = 6), color = I('#1f77b4')) |> 
+  layout(margin = margins)
+
+p3 <- df_covid19_100 |>
+  group_by(location) |>
+  summarise(new_cases = sum(new_cases)) |>
+  plot_ly(x = ~location, y = ~new_cases, text = ~new_cases, 
+          textposition = 'auto', 
+          textfont = list(size = 5.5), marker = list(color = '#1f77b4')) |> 
+  layout(margin = margins)
+
+p4 <- df_covid19_100 |>
+  group_by(location) |>
+  summarise(new_cases = sum(new_cases)) |>
+  plot_ly(x = ~location, y = ~new_cases, text = ~new_cases, 
+          textposition = 'none', 
+          textfont = list(color = 'black', size = 7), color = I('#1f77b4')) |> 
+  layout(title = list(text = '지역별 코로나19 확진자수'),
+         xaxis = list(title = '지역', tickfont = list(size = 7)),
+         yaxis = list(title = '확진자수'), 
+         margin = margins)
+
+subplot(
+  p1 |> layout(annotations = list(x = 0.5 , y = 1.20, text = "textposition = 'inside'", showarrow = F, xref='paper', yref='paper', xanchor = 'center')),
+  p2 |> layout(annotations = list(x = 0.5 , y = 1.2, text = "textposition = 'outside'", showarrow = F, xref='paper', yref='paper', xanchor = 'center')), 
+  p3 |> layout(annotations = list(x = 0.5 , y = -0.7, text = "textposition = 'auto'", showarrow = F, xref='paper', yref='paper', xanchor = 'center')),
+  p4 |> layout(annotations = list(x = 0.5 , y = -0.7, text = "textposition = 'none'", showarrow = F, xref='paper', yref='paper', xanchor = 'center')),
+  nrows = 2, margin = 0.1
+) |> hide_legend()
+
+#export(p = last_plot(), 'subplot.pdf')
+
+```
+
+-   python
+
+```{python eval = FALSE}
+temp = df_covid19_100.groupby('location').agg(new_cases = ('new_cases', 'sum'))
+
+## textposition을 'inside'로 설정
+fig = go.Figure()
+
+fig.add_trace({
+      'type' : 'bar',
+      'x': temp.index,
+      'y': temp['new_cases'],
+      'text' : temp['new_cases'], 
+       'textposition' : 'inside'
+      }
+    )
+
+fig.show()
+
+## textposition을 'outside'로 설정
+fig = go.Figure()
+
+fig.add_trace({
+      'type' : 'bar',
+      'x': temp.index,
+      'y': temp['new_cases'],
+      'text' : temp['new_cases'], 
+       'textposition' : 'outside'
+      }
+    )
+
+fig.show()
+
+## textposition을 'auto'로 설정
+fig = go.Figure()
+
+fig.add_trace({
+      'type' : 'bar',
+      'x': temp.index,
+      'y': temp['new_cases'],
+      'text' : temp['new_cases'], 
+       'textposition' : 'auto'
+      }
+    )
+
+fig.show()
+
+## textposition을 'none'로 설정
+fig = go.Figure()
+
+fig.add_trace({
+      'type' : 'bar',
+      'x': temp.index,
+      'y': temp['new_cases'],
+      'text' : temp['new_cases'], 
+       'textposition' : 'none'
+      }
+    )
+
+fig.show()
+
+```
+
+![](D:/R/git/datavisualization/plotly/chap2/textposition_p.png)
+
+### texttemplate
+
+`texttemplate`은 텍스트가 표시되는 형태를 설정하는 type이다. `texttemplate`는 `hovertemplate`의 정의와 같이 사용되는데 '%{변수:변수포맷}'의 형태로 사용된다. 변수 포맷에서 사용하는 포맷은 자바 스크립트의 d3 format[^4]을 사용한다. 앞의 예에서 일반대학의 입학생수의 포맷에 천단위 콤마를 넣는다면'%{text:,}'로 설정하고 소수점 아래 두째 자리까지 표기한다면'%{text:2f}'로 설정한다.
+
+[^4]: <https://github.com/d3/d3-format/tree/v1.4.5#d3-format>
+
+-   R
+
+```{r fig.cap='texttemplate 설정 결과'}
+## 긴 형태의 100일간 코로나19 데이터 중에
+df_covid19_100 |>
+  ## 국가명으로 그룹화
+  group_by(location) |>
+  ## 확진자수의 합계를 new_cases로 산출
+  summarise(new_cases = sum(new_cases)) |>
+  ## X축을 location, Y축과 text를 new_case로 매핑
+  plot_ly() |>
+  add_trace(type = 'bar', x = ~location, y = ~new_cases, text = ~new_cases, 
+            ## textposition을 'inside'로 설정
+            textposition = 'inside',
+          ## texttemplate를 설정
+          texttemplate = '%{text:,}'
+          )
+
+```
+
+-   python
+
+```{python eval = FALSE}
+fig = go.Figure()
+
+fig.add_trace({
+      'type' : 'bar',
+      'x': temp.index,
+      'y': temp['new_cases'],
+      'text' : temp['new_cases'], 
+       'textposition' : 'inside',
+       ## texttemplate를 설정
+       'texttemplate' : '%{text:,}'
+      }
+    )
+
+fig.show()
+
+```
+
+![](D:/R/git/datavisualization/plotly/chap2/texttemplate_p.png)
+
+### hover
+
+`plotly`와 같은 동적 시각화에서는 대부분 마우스 포인터를 데이터가 표시된 점이나 선에 위치하면 해당 위치의 데이터가 표시된다. `plotly`에서는 이렇게 데이터의 정보를 표시하는 말풍선을 'hover'라고 한다. 'hover'는 시각화를 설계하는 사용자에 따라 표시할 정보를 설정할 수 있는데 이 정보를 설정하는 속성이 `hover*`이다. 호버는 'trace'마다 다르기 때문에 각각의 'trace'마다 설정하는 항목이 다르다.
+
+#### hoverinfo
+
+'hoverinfo'는 호버에 표시되는 데이터 정보를 설정하는 속성으로 'x'(X축 좌표값), 'y'(Y축 좌표값), 'z'(Z축 좌표값), 'text'('text' 속성값), 'name'(trace 이름), 'none'(호버 제거), 'skip'(생략)이 사용될 수 있고 각각은 `+`를 사용하여 조합할 수 있다.
+
+-   R
+
+```{r eval = FALSE}
+df_취업률_2000 |>
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'markers', 
+            x = ~졸업자수, y = ~취업자수,
+            hoverinfo = 'y')
+
+```
+
+![hoverinfo](D:/R/git/datavisualization/plotly/chap2/hoverinfo_R.png)
+
+-   python
+
+```{python eval = FALSE}
+fig = go.Figure()
+
+fig.add_trace({
+  'type' : 'scatter',
+  'mode' : 'markers',
+  'x': df_취업률_2000['졸업자수'],
+  'y': df_취업률_2000['취업자수'], 
+  'hoverinfo' : 'y'
+  })
+
+fig.show()
+
+```
+
+![hoverinfo](D:/R/git/datavisualization/plotly/chap2/hoverinfo.png)
+
+#### hovertext
+
+'hovertext'는 기본적으로 표시되는 호버의 정보에 추가적인 정보를 표시하는 속성이다. 이 속성에는 데이터프레임의 열을 매핑할 수도 있고 고정된 문자열을 설정할수도 있고 문자열과 데이터프레임의 열을 포함한 문자열을 설정할 수 있다.
+
+-   R
+
+```{r eval = FALSE, fig.cap='hovertext 매핑 결과'}
+df_취업률_2000 |>
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'markers', 
+            x = ~졸업자수, y = ~취업자수,
+            ## hovertext를 학과명으로 매핑
+            hovertext = ~paste0('중계열:', 중계열, '\n', '소계열:', 소계열))
+
+```
+
+![hovertext](D:/R/git/datavisualization/plotly/chap2/hovertext_R.png)
+
+-   python
+
+```{python eval=FALSE}
+fig = go.Figure()
+
+fig.add_trace({
+  'type' : 'scatter',
+  'mode' : 'markers',
+  'x': df_취업률_2000['졸업자수'],
+  'y': df_취업률_2000['취업자수'], 
+  'hoverinfo' : 'x+y+text', 
+  'hovertext' : '중계열:'+df_취업률_2000['중계열']+'<br>'+'소계열:'+df_취업률_2000['소계열']
+  })
+
+fig.show()
+
+```
+
+![hovertext](D:/R/git/datavisualization/plotly/chap2/hovertext.png)
+
+#### hovertemplate
+
+'hovertemplete'는 호버 상자와 호버 상자에 표시되는 정보의 포맷을 설정하는 속성이다. 이 속성은 앞서 설명한 `hoverinfo`에 설정된 사용되는 속성의 변수를 `%{변수}`의 형태로 사용할 수 있다. 예를 들어 호버 상자에 Y축 값을 'Y값 : '을 붙여 표시하기 위해서는 `Y값 : %{y}`로 설정한다. 앞서 사용된 예에서 X축의 값에 '졸업자:', Y축의 값에 '취업자:', 대계열에 '대계열:'를 표시하고 값을 표시하는 코드는 다음과 같다.
+
+-   R
+
+```{r eval = FALSE, fig.cap='hovertemplate 설정 결과'}
+df_취업률_2000 |> 
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'markers', 
+            x = ~졸업자수, y = ~취업자수, hovertext = ~대계열,
+            ## hovertamplate의 설정
+            hovertemplate = ' 졸업자:%{x}, 취업자:%{y}, 대계열:%{hovertext}')
+
+```
+
+![hovertemplate](D:/R/git/datavisualization/plotly/chap2/hovertemplate_R.png)
+
+-   python
+
+```{python eval = FALSE}
+fig = go.Figure()
+
+fig.add_trace({
+  'type' : 'scatter',
+  'mode' : 'markers',
+  'x': df_취업률_2000['졸업자수'],
+  'y': df_취업률_2000['취업자수'], 
+  'hovertext' : df_취업률_2000['중계열'],
+  'hovertemplate' : ' 졸업자:%{x}, 취업자:%{y}, 대계열:%{hovertext}'
+  })
+
+fig.show()
+
+```
+
+![hovertemplate](D:/R/git/datavisualization/plotly/chap2/hovertemplate.png)
+
+### opacity
+
+'opacity'는 투명도를 설정하는 속성이다. 투명도는 0부터 1사이의 값을 가지는데 0은 투명하고 1은 불투명하다. 여기서 하나 주의해야할 점은 가급적 'opacity'의 값은 0.5이하로 설정하는 것이 바람직하다는 점이다. 'opacity'는 동일한 'trace' 안에서는 겹쳐진다고 해도 투명도가 변치않는다. 그러나 다른 'trace' 위에 겹쳐지는 경우는 아래의 투명도와 겹쳐져서 투명도가 올라가게 된다. 따라서 0.5 이상의 투명도가 2개 이상 겹치게 되면 투명도가 1이 넘기 때문에 불투명해진다.
+
+-   R
+
+R의 경우에는 투명도 조절에 'opacity'와 'alpha'의 두가지 속성이 사용된다. 아래의 두 시각화는 R에서 'opacity'와 'alpha'와의 차이를 보여준다. 'alpha'는 각각의 색상 채녈에 투명도가 적용되기 때문에 백그라운드 색의 영향을 받지만 'opacity'는 해당 채널에는 모두 같은 투명도가 적용되기 때문에 백그라운드의 영향을 받지 않는다. 하지만 'opacity'도 각각의 채널에 설정이 되면 'alpha'와 동일한 효과가 나온다.
+
+```{r eval = FALSE}
+df_취업률_2000 |> 
+  ## alpha를 0.3으로 설정
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'markers', 
+            x = ~졸업자수, y = ~취업자수, alpha = 0.3)
+
+df_취업률_2000 |> 
+  ## opacity를 0.3으로 설정
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'markers', 
+            x = ~졸업자수, y = ~취업자수, opacity = 0.3)
+
+```
+
+```{r echo = FALSE, fig.cap='alpha와 opacity의 설정 결과'}
+p1 <- df_취업률_2000 |> plot_ly(x = ~졸업자수, y = ~취업자수, alpha = 0.3, color = I('#1f77b4'))
+
+p2 <- df_취업률_2000 |> plot_ly(x = ~졸업자수, y = ~취업자수, opacity = 0.3, color = I('#1f77b4'))
+
+subplot(
+  p1 |> layout(annotations = list(x = 0.5 , y = 1.05, text = "alpha = 0.3", showarrow = F, xref='paper', yref='paper', xanchor = 'center')),
+  p2 |> layout(annotations = list(x = 0.5 , y = 1.05, text = "opacity = 0.3", showarrow = F, xref='paper', yref='paper', xanchor = 'center')), titleY = T, margin = 0.05
+) |> hide_legend() |>
+  layout(margin = margins)
+```
+
+-   python
+
+python의 경우는 투명도 설정에 'opacity' 속성을 사용한다. 하지만 R과 같이 alpha 값을 사용할 수도 있는데 alpha값은 색상의 RGB값을 설정할때 RGBA 값을 사용하면 각각의 색상 채널에 따른 alpha 값을 설정할 수 있다.
+
+```{python eval = FALSE}
+fig = go.Figure()
+
+fig.add_trace({
+  'type' : 'scatter',
+  'mode' : 'markers',
+  'x': df_취업률_2000['졸업자수'],
+  'y': df_취업률_2000['취업자수'], 
+  'opacity' : 0.3
+})
+
+fig.show()
+
+```
+
+![opacity](D:/R/git/datavisualization/plotly/chap2/opacity_python.png)
+
+### showlegend
+
+`showlegend`는 범례를 표기할지 여부를 설정하는 논리값(TRUE/FALSE) 속성이다. FALSE로 설정할 경우 범례가 표기되지 않는다.
+
+-   R
+
+```{r eval = FALSE, fig.cap='showlegend 설정 결과'}
+df_취업률_2000 |> 
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'markers', 
+            x = ~졸업자수, y = ~취업자수, name = ~대계열,
+          ## showlegend을 FALSE로 설정
+          showlegend = FALSE)
+
+```
+
+```{r echo = FALSE, fig.cap='showlegend 설정 결과'}
+df_취업률_2000 |> 
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'markers', 
+            x = ~졸업자수, y = ~취업자수, name = ~대계열, color = ~대계열, colors = 'Blues',
+          ## showlegend을 FALSE로 설정
+          showlegend = FALSE)
+
+```
+
+-   python
+
+python에서도 'showlegend' 속성을 'True' 또는 'False'로 설정함으로써 범례를 표시하거나 없앨 수 있다.
+
+```{python eval = FALSE}
+fig = go.Figure()
+
+for 대계열, group in df_취업률_2000.groupby('대계열'):
+    fig.add_trace({
+        'type' : 'scatter',
+        'mode' : 'markers',
+        'x': group['졸업자수'],
+        'y': group['취업자수'],
+        'name' : 대계열,
+        'showlegend' : False
+    })
+
+fig.show()
+
+```
+
+![opacity](D:/R/git/datavisualization/plotly/chap2/showlegend_p.png)
+
+## layout
+
+지금까지는 시각화를 만들기 위해 필요한 데이터를 트레이스로 표현하는 방법에 대해 알아보았다. `plotly`에서 'data' 속성을 사용하여 데이터를 직접 표현하는 트레이스 외에 데이터와 직접적 관련이 없는 다양한 정보를 표현하는 속성들을 'layout' 속성이라고 한다. 'layout' 속성에는 시각화의 제목, 범례, 여백, 크기, 폰트, 축 등을 설정할 수 있다.
+
+R에서 'layout' 속성의 세부 속성을 설정하기 위해서는 `layout()`을 사용한다. python에서는 plotly.graph_object를 사용하여 'layout'을 설정하는데 `plotly.graph_object.Figure()`에 'layout' 속성에 세부 속성들을 딕셔너리로 구성하거나 `plotly.graph_object.add_trace()`로 트레이스를 추가한 후 `plotly.graph_object.update_layout()`에 세부 속성에 대한 속성값을 할당하는 방법이 있다.
+
+
+### layout 공통 속성
+
+
+#### title : 제목 설정
+
+`plotly`의 제목을 설정하는 type은 'title'이다. 'title'의 세부 type은 다음과 같다. 앞서 설명한 바와 같이 'title'은 다른 속성과 조금 다른 부분이 있다. 원칙적으로 'title'은 상위 속성으로 세부 속성들의 list나 dict로 구성해야 한다. 하지만 'title'에 바로 문자열을 설정하면 그 자체가 속성으로 사용되어 제목을 설정하는 속성이 된다.
+
+'title'에서 사용하는 주요 하위 속성은 다음과 같다.
+
++-----------+---------------------------------------------+---------------------------------------------------------------+---------------------+
+| type      | 설명                                        | type 값 및 설명                                               | 세부 type           |
++===========+=============================================+===============================================================+=====================+
+| font      | 제목 글꼴 설정                              |                                                               | color, family, size |
++-----------+---------------------------------------------+---------------------------------------------------------------+---------------------+
+| pad       | 제목 패딩(여백과 시각화 개체와의 거리) 설정 |                                                               | b, l, r, t          |
++-----------+---------------------------------------------+---------------------------------------------------------------+---------------------+
+| text      | 제목 문자열 설정                            |                                                               |                     |
++-----------+---------------------------------------------+---------------------------------------------------------------+---------------------+
+| x         | X축의 정렬                                  | 0부터 1까지의 상대적 위치 설정                                |                     |
++-----------+---------------------------------------------+---------------------------------------------------------------+---------------------+
+| xanchor   | X축의 정렬                                  | auto, left, right, center 중 하나 설정                        |                     |
++-----------+---------------------------------------------+---------------------------------------------------------------+---------------------+
+| xref      | x가 참조하는 범위 설정                      | 'container'는 전체 플롯 width, 'paper'는 플롯이 표시되는 범위 |                     |
++-----------+---------------------------------------------+---------------------------------------------------------------+---------------------+
+| y         | Y축의 정렬,                                 | 0부터 1까지의 상대적 위치 설정                                |                     |
++-----------+---------------------------------------------+---------------------------------------------------------------+---------------------+
+| yanchor   | Y축의 정렬                                  | auto, top, middle, bottom 중 하나 설정                        |                     |
++-----------+---------------------------------------------+---------------------------------------------------------------+---------------------+
+| yref      | y가 참조하는 범위 설정                      | 'container'는 전체 플롯 width, 'paper'는 플롯이 표시되는 범위 |                     |
++-----------+---------------------------------------------+---------------------------------------------------------------+---------------------+
+
+`plotly`에서는 제목과 같은 문자열을 꾸미기 위해 HTML 텍스트 태그를 지원하는데 전체 HTML 중 5가지만을 지원한다.
+
+| HTML tab           | 설명            |
+|--------------------|-----------------|
+| <b></b>            | 볼드체 설정     |
+| <i></i>            | 이탤릭체 설정   |
+| <br>               | 줄 바꿈 설정    |
+| <sup></sup>        | 윗 첨자 설정    |
+| <sub></sub>        | 아래 첨자 설정  |
+| <a href='url'></a> | 하이퍼링크 설정 |
+
+-   R
+
+R에서는 `add_trace()`로 트레이스를 추가한 후 `layout()`을 사용하여 'layout'의 세부 속성을 설정할 수 있다. 하나 주의해야 할 것은 `add_trace()`로 트레이스를 추가해 만든 `plotly` 객체를 대상으로 `layout()`을 실행해야 한다는 것이다.
+
+```{r}
+R_layout_scatter <- df_취업률_2000 |> 
+  filter(졸업자수 < 500) |> 
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'markers', 
+            x = ~졸업자수, y = ~취업자수)
+
+R_layout_scatter <- R_layout_scatter |> 
+  layout(title = list(text = '<b>졸업자 대비 취업자수</b>', 
+                      x = 0.5, xanchor = 'center', yanchor = 'top')
+         )
+
+R_layout_scatter
+```
+
+`plotly`가 HTML 텍스트 tag를 일부만 지원함으로써 문자열 스타일링에 한계가 있을듯 하지만 '<span>'을 사용하는 HTML inline 속성을 지원하기 때문에 CSS의 스타일을 사용하여 문자열의 세부 설정이 가능하다. 다음은 HTML의 inline 속성을 사용하여 제목을 설정하는 코드이다.
+
+```{r}
+R_layout_scatter |> layout(title = list(text = "<span style = 'font-size:15pt'><span style = 'color:red;font-weight:bold;'> 졸업자</span><span style = 'font-size:10pt'> 대비</span> <span style = 'color:blue;font-weight:bold;'>취업률</span></span>", 
+                               x = 0.5, xanchor = 'center', yanchor = 'top')
+                    )
+```
+
+-   python
+
+앞서 설명했듯이 python에서 plotly.graph_object를 사용하여 'layout'을 설정하기 위해서는 plotly.graph_object의 초기화 함수인 `Figure()`에서 'layout' 속성의 세부 속성들을 딕셔너리로 설정하거나 `add_trace()`로 트레이스를 설정하고 이 `plotly`객체에 `update_layout()`을 사용한다.
+
+`Figure()`를 사용하는 방법은 다음과 같다.
+
+```{python eval = FALSE}
+fig = go.Figure()
+
+go.Figure(
+    data = [
+      {
+        'type' : 'scatter',
+        'mode' : 'markers',
+        'x' : df_취업률_2000['졸업자수'],
+        'y' : df_취업률_2000['취업자수'], 
+        'marker' : {
+            'color' : 'darkblue'
+        }
+      }
+    ], 
+    layout = {
+      'title' : {'text' : "<b>졸업자 대비 취업자수</b>",
+                 'x' : 0.5,
+                 'xanchor' : 'center',
+                 'yanchor' : 'top'
+                 }
+      }
+)
+
+```
+
+`update_layout()`을 사용하는 방법은 다음과 같다. `update_layout()`를 사용할 때 주의해야 하는 것은 'layout'에 바로 아래 하위 속성들은 딕셔너리로 설정하지 않고 `=`을 사용하여 할당하고 이들 하위 속성의 하위 속성이 존재할 때는 다시 딕셔너리로 구성하여야 한다. .
+
+```{python evel = FALSE}
+fig_scatter = go.Figure()
+
+fig_scatter.add_trace({
+    'type' : 'scatter',
+        'mode' : 'markers',
+        'x' : df_취업률_2000['졸업자수'],
+        'y' : df_취업률_2000['취업자수'], 
+        'marker' : {
+            'color' : 'darkblue'
+        }
+})
+
+fig_scatter.update_layout(title = {'text' : "<b>졸업자 대비 취업자수</b>",
+                           'x' : 0.5, 'xanchor' : 'center',
+                           'yanchor' : 'top'})
+
+```
+
+python도 '<span>'을 사용하는 HTML inline 속성을 사용하여 CSS의 스타일의 세부 설정이 가능하다. 다음의 코드는 앞의 코드와 동일하나 `add_trace()`에 속성 설정을 `go.Scatter()`를 사용하고 제목 문자열을 CSS inline으로 설정한 코드이다.
+
+```{python eval=FALSE}
+fig_scatter_temp = go.Figure(fig_scatter)
+
+fig_scatter_temp.update_layout(title = {'text' : "<span style = 'font-size:15pt'><span style = 'color:red;font-weight:bold;'> 졸업자</span><span style = 'font-size:10pt'> 대비</span> <span style = 'color:blue;font-weight:bold;'>취업률</span></span>",
+                           'x' : 0.5, 'xanchor' : 'center',
+                           'yanchor' : 'top'})
+                           
+```
+
+#### legend : 범례 설정 
+
+`layout()`에서 범례 설정과 관련된 속성은 'showlegend'와 'legend'이다.
+
+'showlegend'는 범례를 표시하거나 삭제하는 속성인데 `add_trace()`에서도 설정이 가능하다. `add_trace()`에서 설정하면 해당 트레이스만 범례에서 삭제하고 `layout()`에서 설정하면 전체 범례를 삭제하게 된다.
+
+'legend'는 범례의 세부 설정을 위한 세부 속성으로 구성된다. 'legend'로 설정이 가능한 주요 속성은 다음과 같다.
+
++--------------------------+-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------+
+| type                     | 설명                                          | type 값 및 설명                                                                                                                                      | 세부 type                             |
++==========================+===============================================+======================================================================================================================================================+=======================================+
+| bgcolor                  | 범례의 배경색 설정                            |                                                                                                                                                      |                                       |
++--------------------------+-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------+
+| bordercolor, borderwidth | 범례를 둘러싸는 외곽선 색, 두께 설정          |                                                                                                                                                      |                                       |
++--------------------------+-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------+
+| font                     | 범례의 문자열에 적용되는 문자 속성 설정       |                                                                                                                                                      | color, family, size                   |
++--------------------------+-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------+
+| groupclick               | 범례 아이템을 클릭할 때 범례 그룹의 동작 설정 | 'toggleitem'은 범례에서 클릭한 항목의 표시를 토들, 'togglegroup'은 범례에서 클릭한 항목 그룹의 표시를 토글                                           |                                       |
++--------------------------+-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------+
+| grouptitlefont           | 범례 아이템 그룹의 제목과 제목 설정           | 범례 그룹 제목과 그 형태 설정                                                                                                                        | color, family, size                   |
++--------------------------+-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------+
+| itemclick                | 범례 아이템을 클릭 할 때의 동작 설정          | 'toggle'은 범례에서 클릭한 항목의 표시를 토글, 'toggleothers'는 클릭한 항목만을 보이게 설정, "FALSE"는 범례 항목 클릭 동작을 비활성화                |                                       |
++--------------------------+-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------+
+| itemdoubleclick          | 범례 아이템을 더블 클릭 할 때의 동작 설정     | 'toggle'은 범례에서 더블 클릭한 항목의 표시를 토글, 'toggleothers'는 더블 클릭한 항목만을 보이게 설정, "FALSE"는 범례 항목 더블 클릭 동작을 비활성화 |                                       |
++--------------------------+-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------+
+| orientation              | 범례 표시 방향의 설정                         | 'v'는 세로형태, 'h'는 가로 형태로 표시                                                                                                               |                                       |
++--------------------------+-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------+
+| title                    | 범례 제목 설정                                |                                                                                                                                                      | font(color, family, size), side, text |
++--------------------------+-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------+
+| traceorder               | 범례 순서 설정                                | 'reversed', 'grouped', 'normal'의 조합('+')                                                                                                          |                                       |
+|                          |                                               |                                                                                                                                                      |                                       |
+|                          |                                               | "normal"은 trace의 추가와 동일한 순서, "reversed"는 'normal'과 반대 순서, 'grouped'는 'legendgroup'이 설정된 경우 그룹의 순서로 표시                 |                                       |
++--------------------------+-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------+
+| x, y, xanchor, yanchor   | 범례 위치 설정                                |                                                                                                                                                      |                                       |
++--------------------------+-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------------------+
+
+-   R
+
+다음의 코드는 코로나 19의 확진자 수를 넓은 형태의 데이터프레임에서 선형 차트로 그리고 있다. 각각의 대륙을 `add_trace()`로 추가하여 총 4개의 트레이스를 추가하였고 이중 아시아 트레이스에는 'showlegend'를 FALSE로 설정하여 아시아 트레이스의 범례를 제거하였다. 또 'layout'에서 제목과 범례의 세부 설정을 해주었다.  
+
+```{r eval = FALSE}
+R_layout_line <- df_covid19_100_wide |> 
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'lines',
+            x = ~date, y = ~확진자_한국, name = '한국')
+
+R_layout_line <- R_layout_line |> 
+  add_trace(type = 'scatter', mode = 'lines',
+            x = ~date, y = ~확진자_아시아, name = '아시아', showlegend = FALSE)
+
+R_layout_line <- R_layout_line |> 
+  add_trace(type = 'scatter', mode = 'lines',
+            x = ~date, y = ~확진자_유럽, name = '유럽')
+
+R_layout_line <- R_layout_line |> 
+  add_trace(type = 'scatter', mode = 'lines',
+            x = ~date, y = ~확진자_북미, name = '북미')
+
+R_layout_line <- R_layout_line |> 
+  layout(title = list(text = '<b>대륙별 신규 확진자수 추이</b>',
+                      x = 0.5, xanchor = 'center', yanchor = 'top'),
+         legend = list(orientation = 'v',  bordercolor = 'gray', borderwidth = 2,
+                       x = 0.95, y = 0.95, xanchor = 'right')
+  )
+  
+
+R_layout_line
+```
+
+```{r echo = FALSE}
+R_layout_line <- df_covid19_100_wide |> 
+  plot_ly() |>
+  add_trace(type = 'scatter', mode = 'lines',
+            x = ~date, y = ~확진자_한국, name = '한국', color = I("#084594"))
+
+R_layout_line <- R_layout_line |> 
+  add_trace(type = 'scatter', mode = 'lines',
+            x = ~date, y = ~확진자_아시아, name = '아시아', showlegend = FALSE, color = I("#2171B5"))
+
+R_layout_line <- R_layout_line |> 
+  add_trace(type = 'scatter', mode = 'lines',
+            x = ~date, y = ~확진자_유럽, name = '유럽', color = I("#4292C6"))
+
+R_layout_line <- R_layout_line |> 
+  add_trace(type = 'scatter', mode = 'lines',
+            x = ~date, y = ~확진자_북미, name = '북미', color = I("#6BAED6"))
+
+R_layout_line <- R_layout_line |> 
+  layout(title = list(text = '대륙별 신규 확진자수 추이',
+                      xanchor = 'center', yanchor = 'top'),
+         legend = list(orientation = 'v',  bordercolor = 'gray', borderwidth = 2,
+                       x = 0.95, y = 0.95, xanchor = 'right'), 
+         showlegend = TRUE
+                    )
+R_layout_line
+
+```
+
+-   python
+
+다음의 코드는 코로나 19의 확진자 수를 넓은 형태의 데이터프레임에서 선형 차트로 그리고 있다. 각각의 대륙을 `add_trace()`로 추가하여 총 4개의 트레이스를 추가하였고 이중 아시아 트레이스에는 'showlegend'를 False로 설정하여 아시아 트레이스의 범례를 제거하였다. 또 'layout'에서 제목과 범례의 세부 설정을 해주었다.
+
+```{python eval = FALSE}
+fig_line = go.Figure()
+
+fig_line.add_trace(go.Scatter(
+    type = 'scatter', mode = 'lines',
+    x = df_covid19_100_wide.index,
+    y = df_covid19_100_wide['확진자_한국'],
+    name = '한국'
+))
+
+fig_line.add_trace(go.Scatter(
+    type = 'scatter', mode = 'lines',
+    x = df_covid19_100_wide.index,
+    y = df_covid19_100_wide['확진자_아시아'],
+    name = '아시아', showlegend = False
+))
+
+fig_line.add_trace(go.Scatter(
+    type = 'scatter', mode = 'lines',
+    x = df_covid19_100_wide.index,
+    y = df_covid19_100_wide['확진자_유럽'],
+    name = '유럽'
+))
+
+fig_line.add_trace(go.Scatter(
+    type = 'scatter', mode = 'lines',
+    x = df_covid19_100_wide.index,
+    y = df_covid19_100_wide['확진자_북미'],
+    name = '북미'
+))
+
+fig_line.update_layout(
+    title = dict(text = '대륙별 신규 확진자수 추이', x = 0.5,
+             xanchor = 'center', yanchor = 'top'),
+    legend = dict(orientation = 'v',  bordercolor = 'gray', borderwidth = 2,
+                  x = 0.95, y = 0.95, xanchor = 'right'), 
+         showlegend = True)
+
+```
+
+```{python eval=FALSE}
+fig_line = go.Figure()
+
+fig_line.add_trace(go.Scatter(
+    type = 'scatter', mode = 'lines',
+    x = df_covid19_100_wide.index,
+    y = df_covid19_100_wide['확진자_한국'],
+    line = dict(color = "#084594"),
+    name = '한국'
+))
+
+fig_line.add_trace(go.Scatter(
+    type = 'scatter', mode = 'lines',
+    x = df_covid19_100_wide.index,
+    y = df_covid19_100_wide['확진자_아시아'],
+    line = dict(color = "#2171B5"),
+    name = '아시아', showlegend = False
+))
+
+fig_line.add_trace(go.Scatter(
+    type = 'scatter', mode = 'lines',
+    x = df_covid19_100_wide.index,
+    y = df_covid19_100_wide['확진자_유럽'],
+    line = dict(color = "#4292C6"),
+    name = '유럽'
+))
+
+fig_line.add_trace(go.Scatter(
+    type = 'scatter', mode = 'lines',
+    x = df_covid19_100_wide.index,
+    y = df_covid19_100_wide['확진자_북미'],
+    line = dict(color = "#6BAED6"),
+    name = '북미'
+))
+
+fig_line.update_layout(
+    title = dict(text = '대륙별 신규 확진자수 추이', x = 0.5,
+             xanchor = 'center', yanchor = 'top'),
+    legend = dict(orientation = 'v',  bordercolor = 'gray', borderwidth = 2,
+                  x = 0.95, y = 0.95, xanchor = 'right'), 
+         showlegend = True)
+
+```
+
+#### margin : 여백 설정
+
+'layout'의 하위 속성 중 에서 여백의 설정과 관련된 속성은 'margin'이다. 'margin'으로 설정되는 여백은 플롯이 표시되는 면적과 전체 플롯 경계선과의 여백을 말한다. 여백 설정에 사용되는 세부 속성은 다음과 같다.
+
++-------------+--------------------------------+-----------------+-------------+
+| type        | 설명                           | type 값 및 설명 | 세부 속성   |
++=============+================================+=================+=============+
+| autoexpand  | 여백 설정 값을 사용할지 설정   | TRUE/FALSE      |             |
++-------------+--------------------------------+-----------------+-------------+
+| b           | 아래쪽 여백 설정               |                 |             |
++-------------+--------------------------------+-----------------+-------------+
+| l           | 왼쪽 여백 설정                 |                 |             |
++-------------+--------------------------------+-----------------+-------------+
+| r           | 오른쪽 여백 설정               |                 |             |
++-------------+--------------------------------+-----------------+-------------+
+| t           | 위쪽 여백 설정                 |                 |             |
++-------------+--------------------------------+-----------------+-------------+
+| pad         | 플로팅 지역과 축과의 여백 설정 |                 |             |
++-------------+--------------------------------+-----------------+-------------+
+
+-   R
+
+R에서 여백의 설정은 다음과 같다. 
+
+```{r}
+R_layout_line <- R_layout_line |> 
+  layout(margin = list(t = 50, b = 25, l = 25, r = 25))
+
+R_layout_line
+```
+
+-   python
+
+python에서 여백의 설정은 다음과 같다. 
+
+```{python eval = FALSE}
+fig_line.update_layout(
+    margin = dict(t = 50, b = 25, l = 25, r = 25)
+)
+
+```
+
+#### size : 플롯 크기 설정
+
+'layout'에서 전체 플롯 크기의 설정을 위해서는 'autosize', 'height', 'width'의 세 가지 속성이 주로 사용된다. 'autosize'는 사용자가 정의하지 않은 레이아웃의 너비 또는 높이를 자동적으로 설정하는 논리값을 설정한다. 그리고 사용자가 크기를 결정하려면 'height'와 'width'는 전체 플롯 레이아웃의 높이와 너비를 설정하는 속성이다.
+
+-   R
+
+```{r}
+R_layout_scatter |> 
+  layout(width = 450, height = 700)
+
+```
+
+-   python
+
+```{python eval = FALSE}
+fig_scatter_temp.update_layout(width = 450, height = 700)
+```
+
+#### font : 폰트 설정 
+
+'layout'에서 플롯 전체적인 문자열의 설정과 관련된 속성은 'font'이다. 'font'는 다음과 같은 세 개의 세부 속성을 설정할 수 있다.
+
+| type   | 설명                     | type 값 및 설명 | 세부 type |
+|--------|--------------------------|-----------------|-----------|
+| color  | 플롯 전체 문자 색 설정   |                 |           |
+| family | 플롯 전체 문자 폰트 설정 |                 |           |
+| size   | 플롯 전체 문자 크기 설정 |                 |           |
+
+-   R
+
+전체적인 폰트의 설정은 다음과 같이 설정할 수 있다. `ggplot2`에서는 한글 폰트의 설정에 다소 어려움이 있었지만 `plotly`에서는 `family` type에 바로 폰트 이름을 설정하면 쉽게 한글 폰트를 사용할 수 있다.
+
+```{r}
+R_layout_line |> 
+  layout(font = list(family = "나눔고딕", color = 'MidnightBlue', size = 12))
+```
+
+-   python
+
+```{python eval = FALSE}
+fig_line.update_layout(font = dict(family = "나눔고딕", color = 'MidnightBlue', size = 15))
+
+```
+
+#### color : 색 설정 
+
+'layout'에서 플롯의 배경색이나 플롯에서 사용되는 전반적인 색 스케일을 설정하는 속성은 다음과 같다.
+
++---------------+--------------------------------------------+-----------------+----------------------------------------+
+| type          | 설명                                       | type 값 및 설명 | 세부 type                              |
++===============+============================================+=================+========================================+
+| paper_bgcolor | 플롯이 그려지는 용지의 배경색을 설정       |                 |                                        |
++---------------+--------------------------------------------+-----------------+----------------------------------------+
+| plot_bgcolor  | x축과 y축 사이의 플로팅 영역의 배경색 설정 |                 |                                        |
++---------------+--------------------------------------------+-----------------+----------------------------------------+
+| colorscale    | 컬러 스케일의 설정                         |                 | diverging, sequential, sequentialminus |
++---------------+--------------------------------------------+-----------------+----------------------------------------+
+| colorway      | 기본 컬러 벡터 설정                        |                 |                                        |
++---------------+--------------------------------------------+-----------------+----------------------------------------+
+
+`plotly`에서 사용하는 색의 설정은 색 이름 설정, 16진수로 설정된 RGB값 설정, `rgb()` 함수를 사용한 RGB값의 설정 세 가지 방법이 주로 사용된다. 이외에도 색조, 채도, 명도(lightness)를 사용하는 `hsl()`을 사용하는 방법, 색조, 채도, 명도(value)를 사용하는 `hsv()`를 사용하는 방법도 있다. `plotly`에서 사용이 가능한 색 이름은 W3.org에서 제공하는 CSS 색 이름을 사용한다.[^5]
+
+[^5]: <https://www.w3schools.com/cssref/css_colors.asp>
+
+-   R
+
+```{r}
+R_layout_scatter <- R_layout_scatter |> 
+  layout(paper_bgcolor = 'black', plot_bgcolor = 'black', 
+         title = list(font = list(color = 'yellow')), 
+         margin = list(t = 50, b = 25, l = 25, r = 25))
+
+R_layout_scatter
+```
+
+-   python
+
+```{python eval = FALSE}
+fig_scatter.update_layout(paper_bgcolor = 'black', plot_bgcolor = 'black', 
+                          title = dict(font = dict(color = 'yellow')), 
+                          margin = dict(t = 50, b = 25, l = 25, r = 25))
+```
+
+#### xaxis, yaxis : 축 설정 
+
+`plotly`에서 축은 트레이스에 따라 매우 다른 이름으로 불린다. X, Y축을 사용하는 2차원의 데카르트 좌표계에서는 'axis', 3차원 trace에서는 'scene', 극 좌표계에서는 'polar', 삼각축 좌표계(ternary)에서는 'ternary', 지형(Geo) 좌표계에서는 'geo', Mapbox 좌표계에서는 'mapbox', 색 좌표계에서는 'coloraxis'로 사용된다. 이 중 2차원 데카르트 좌표계에서 사용되는 'xaxis'와 'yaxis'의 주요 속성은 다음과 같다. 
+
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| type                                   | 설명                                                     | type 값 및 설명                                                                                                                                       | 세부 type                                 |
++========================================+==========================================================+=======================================================================================================================================================+===========================================+
+| title                                  | 축 이름 설정                                             | 예외적으로 title에 세부 list를 설정하지 않고 직접 문자열로 축이름 설정 가능                                                                           | font(color, family, size), standoff, text |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| type                                   | 축 유형 설정                                             | 'linear'은 선형 축, 'log'은 로그 변환 축, 'date'은 날짜형 축, 'category'은 팩터형 축, 'multicategory'은 다중 팩터형 축 설정                           |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| range                                  | 축 범위 설정                                             | 축 범위가 지정된 list 설정                                                                                                                            |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| rangemode                              | 축 범위의 특성 설정                                      | 'normal'이면 입력 데이터의 최대, 최소값으로 범위를 설정, 'tozero'이면 입력 데이터에 관계없이 범위가 0부터 시작, 'non-negative'이면 음수 범위는 제거됨 |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| linecolor, linewidth                   | 축 선 설정                                               | 'linecolor'는 축 선 색, 'linewidth'는 축 선 두께 설정                                                                                                 |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| zeroline, zerolinecolor, zerolinewidth | 0 선 설정                                                | 'zeroline'은 TRUE/FALSE, 'zerolinecolor'는 색, 'zerolinewidth'는 두께 설정                                                                            |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| position                               | 축 선 위치 설정                                          | 0부터 1까지 상대 위치 설정                                                                                                                            |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| gridcolor, gridwidth                   | 눈금선 설정                                              | 'gridcolor'는 눈금선 색, 'gridwidth'는 눈금선 두께 설정                                                                                               |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| autotypenumber                         | 축에 설정되는 값이 문자형일때 숫자형으로 변환할지를 결정 | 'convert types'은 문자형 수치를 숫자형으로 변환하고 'strict'는 문자형 수치를 그대로 사용                                                              |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| ticks                                  | 눈금자를 어느쪽으로 그릴지 설정                          | 'outside'는 플롯 바깥쪽, 'inside'는 플롯 안쪽으로 눈금자를 그림                                                                                       |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| tickangle, ticklen, tickcolor          | 눈금자의 각도, 길이, 색 설정                             | 'tickangle'은 눈금자 각도, 'ticklen'은 눈금자 길이, 'tickcolor'는 눈금자 색 설정                                                                      |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| tick0, dtick, nticks                   | 눈금자의 시작점, 눈금자의 간격, 눈금자의 개수 설정       | 'tick0'는 눈금자가 시작하는 위치, 'dtick'은 눈금자의 간격, 'nticks'는 눈금자의 개수 설정                                                              |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| tickvals, ticktext                     | 눈금자의 위치, 표시문자 설정                             | 'tickvals'에 설정된 수치 벡터나 리스트의 위치에 눈금자 설정, 'ticktext'는 'tickvalues'에 설정된 위치에 표기할 문자열 설정                             |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| showgrid, showline, showticklabel      | 눈금선, 축 선, 눈금자 라벨의 표시 여부 설정              | 'showgrid'는 눈금선, 'showline'은 축 선, 'showticklabel'은 눈금자 라벨의 표시 여부를 설정하는 TRUE/FALSE                                              |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+| tickprefix, ticksuffix                 | 눈금자 라벨의 접두어, 접미어 설정                        | 'tickprefix'는 눈금자 라벨의 접두어, 'ticksuffix'는 접미어 설정                                                                                       |                                           |
++----------------------------------------+----------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------------------------------+
+
+```{r}
+R_layout_scatter <- R_layout_scatter |>
+  layout(xaxis = list(title = list(text = '학과 졸업자수(명)'), color =  'white',
+                      zerolinecolor = 'yellow', zerolinewidth = 3, 
+                      gridcolor = 'grey', gridwidth = 1), ## 정상적 방법 
+         yaxis = list(title = list(text = '학과 취업자수(명)'), color = 'white',
+                      zerolinecolor = 'yellow', zerolinewidth = 3, 
+                      gridcolor = 'grey', gridwidth = 1, griddash = 'dot') ## 약식 방법
+         )
+
+R_layout_scatter
+```
+
+
+```{r}
+R_layout_scatter <- R_layout_scatter |> 
+  layout(xaxis = list(title = list(text = '졸업자'),
+                      tickmode = 'array',
+                      ticktext = c('소규모', '중규모', '대규모'),
+                      tickvals = c(100, 300, 400)
+                      ),  ## 정상적 방법 
+                    yaxis = list(title = '취업자', ticks="inside", tick0 = 100, dtick = 100) ## 약식 방법
+                    )
+
+R_layout_scatter
+```
+
+```{python eval = FALSE}
+fig_scatter.update_layout(xaxis = dict(title = dict(text = '학과 졸업자수(명)'), color =  'white',
+                                       zerolinecolor = 'yellow', zerolinewidth = 3,
+                                       gridcolor = 'grey', gridwidth = 1), ## 정상적 방법 
+                          yaxis = dict(title = dict(text = '학과 취업자수(명)'), color = 'white',
+                                       zerolinecolor = 'yellow', zerolinewidth = 3,
+                                       gridcolor = 'grey', gridwidth = 1)
+                          )
+    )         
+```
+
+```{python eval = FALSE}
+fig_scatter.update_layout(
+    xaxis = dict(title = dict(text = '졸업자'),
+                 tickmode = 'array',
+                 ticktext = ('소규모', '중규모', '대규모'),
+                 tickvals = (100, 300, 400)
+                 ),  ## 정상적 방법
+    yaxis = dict(title = '취업자', ticks="inside", tick0 = 100, dtick = 100) ## 약식
+)
+
+```
+
+
+# 서브 플롯 : subplot()
+
+데이터를 시각화할 때 하나의 시각화에 여러 개의 데이터를 표시하는 경우 각각의 데이터 trace들이 너무 많아지거나 일부 구간에 중복되면 데이터의 정확한 확인이 어렵다. 이럴때는 각각의 데이터 trace들을 따로 떼서 작은 시각화를 여러개 그려줌으로써 해결할 수 있다. 이렇게 여러개의 `plotlt` 객체를 모아서 하나의 `plotly` 시각화로 만들어주는 함수가 `subplot()`이다. 앞서 `plotly`의 설명 과정에서 여러개의 시각화가 모여서 그려진 사례는 모두 `subplot()`과 'annotation'을 사용해서 만들었다.
+
+`subplot()`의 주요 사용법은 다음과 같다.
+
+::: {custom-style="comment"}
+subplot(..., nrows = 1, widths = NULL, heights = NULL, margin = 0.02, shareX = FALSE, shareY = FALSE, titleX = shareX, titleY = shareY, which_layout = "merge")\
+- ... : plotly나 ggplot2 객체의 이름, 리스트, tibble\
+- nrows : subplot의 행의 개수\
+- widths : 각각의 subplot의 0부터 1사이의 상대적 열 너비\
+- heights : 각각의 subplot의 0부터 1사이의 상대적 열 높이\
+- margin : 0부터 1사이의 단일 수치나 4개의 수치(왼쪽, 오른쪽, 위, 아래)의 여백\
+- shareX : X축을 공유할지에 대한 논리값\
+- shareY : Y축을 공유할지에 대한 논리값\
+- titleX : X축의 제목을 남길지에 대한 논리값\
+- titleY : Y축의 제목을 남길지에 대한 논리값\
+- which_layout : 어떤 플롯의 레이아웃에 적용할지 결정, 기본값은 "merge"로 뒤 플롯의 레이아웃 옵션이 앞 옵션보다 우선함을 의미\
+:::
+
+`subplot()`은 subplot으로 그릴 각각의 `plotly` 객체나 `ggplot2`를 먼저 생성하고 이들 객체들을 `subplot()`을 사용하여 묶어 그려주는 형태로 사용된다. 이 과정에서 `shareX`, `shareY`를 사용하여 X, Y축의 공유를 설정하거나 `nrows`를 사용하여 `subplot()`의 행 개수를 설정할 수 있다. 또 각각의 서브 플롯이 겹쳐지지 않도록 `margin`을 설정할 수 있다.
+
+```{r fig.cap='서브 플롯 생성'}
+## 서브플롯 생성을 위한 기본 plotly 객체 생성
+p_line_wide <- df_covid19_100_wide |> plot_ly()
+
+## 첫 번째 서브 플롯 생성
+p1 <- p_line_wide |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_한국, color = I('#1f77b4')) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 두 번째 서브 플롯 생성
+p2 <- p_line_wide |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_아시아, color = I('#1f77b4')) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 세 번째 서브 플롯 생성
+p3 <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_유럽, color = I('#1f77b4')) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 네 번째 서브 플롯 생성
+p4 <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_북미, color = I('#1f77b4')) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 댜섯 번째 서브 플롯 생성
+p5 <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_남미, color = I('#1f77b4')) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 여섯 번째 서브 플롯 생성
+p6 <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date,
+            y = ~확진자_오세아니아, color = I('#1f77b4')) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 일곱 번째 서브 플롯 생성
+p7 <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_아프리카, color = I('#1f77b4')) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## subplot 설정
+subplot(
+  p1 |> 
+    ## layout으로 첫 번째 서브 플롯의 주석 표시 
+    layout(annotations = list(
+      ## 주석의 위치와 주석 text 설정
+      x = 0.5 , y = 1.02, text = "한국",
+      ## 화살표는 표시하지 않음
+      showarrow = F, 
+      ## X, Y의 참조 위치는 'paper'
+      xref='paper', yref='paper',
+      ## X방향 정렬은 'center'
+      xanchor = 'center')),
+  p2 |> 
+    ## layout으로 두 번째 서브 플롯의 주석 표시 
+    layout(annotations = list(
+      x = 0.5 , y = 1.02, text = "아시아",
+      showarrow = F, xref='paper', yref='paper',
+      xanchor = 'center')),
+  p3 |> 
+    ## layout으로 세 번째 서브 플롯의 주석 표시 
+    layout(annotations = list(
+      x = 0.5 , y = 1.02, text = "유럽",
+      showarrow = F, xref='paper', yref='paper',
+      xanchor = 'center')),
+  p4 |> 
+    ## layout으로 네 번째 서브 플롯의 주석 표시 
+    layout(annotations = list(
+      x = 0.5 , y = 1.02, text = "북미", 
+      showarrow = F, xref='paper', yref='paper',
+      xanchor = 'center')),
+  p5 |> 
+    ## layout으로 다섯 번째 서브 플롯의 주석 표시 
+    layout(annotations = list(
+      x = 0.5 , y = 1.02, text = "남미",
+      showarrow = F, xref='paper', yref='paper',
+      xanchor = 'center')),
+  p6 |> 
+    ## layout으로 여섯 번째 서브 플롯의 주석 표시 
+    layout(annotations = list(
+      x = 0.5 , y = 1.02, text = "오세아니아",
+      showarrow = F, xref='paper', yref='paper',
+      xanchor = 'center')),
+  p7 |> 
+    ## layout으로 일곱 번째 서브 플롯의 주석 표시 
+    layout(annotations = list(
+      x = 0.5 , y = 1.02, text = "아프리카", 
+      showarrow = F, xref='paper', yref='paper',
+      xanchor = 'center')),
+  ## 서브플롯은 3개의 열로 설정
+  nrows = 3,
+  ## 서브플롯간의 여백 설정
+  margin = 0.04) |> 
+  ## 범례는 제거
+  layout(showlegend = FALSE,
+         ## 전체 제목 설정
+         title = '최근 100일간 코로나19 확진자수',
+         ## 전체 여백 설정
+         margin = margins)
+```
+
+앞의 `subplot()`에서의 예는 각각의 `plotly` 객체를 각각 만든 후에 이들 `plotly` 객체들을 `subplot()`으로 하나의 플롯으로 만들어 주었다. 서브 플롯이 몇개 되지 않을때는 이렇게 각각 만든 `plotly` 객체를 묶어주는 것이 가능하겠지만 서브 플롯이 많을 때는 이러한 작업이 매우 어려워진다. 특히 긴 형태의 데이터프레임의 경우 앞서와 같이 서브 플롯을 만들어 주기 위해서는 각각의 서브 플롯마다 데이터를 필터링하여 만들어야하기 때문에 매우 번거로운 작업이 수반된다. 이럴 경우는 `group_by()`로 데이터프레임을 그룹화하고 `.`을 사용하여 각각의 그룹화된 데이터 그룹별로 `plotly` 객체를 만드는 방식으로 간단히 서브 플롯을 만들어 줄 수 있다. 이 때 `do`를 사용하여 각각의 그룹화된 데이터 그룹별 `plotly` 객체를 만드는 코드를 적용하여야 한다.
+
+```{r fig.cap='group_by()를 사용한 subplot 생성'}
+## 긴 형태의 100일 코로나19 데이터에서
+df_covid19_100 |>
+  ## 국가명으로 그룹화
+  group_by(location) |>
+  ## 그룹화한 각각의 데이터 그룹들에 적용할 코드 설정
+  do(
+      ## 각 그룹화한 데이터를 사용해 plotly 객체 생성    
+      p = plot_ly(.) |> 
+        ## line 모드의 스캐터 trace 추가
+      add_trace(type = 'scatter', mode = 'lines',
+                ## X, Y축에 변수 매핑, color를 설정
+                x = ~date, y = ~new_cases, color = I('#1f77b4')) |>
+      ## layout으로 X, Y축을 설정
+      layout(title = list(title = NULL),
+             xaxis = list(tickfont = list(size = 10)),  
+             yaxis = list(title = list(text = '확진자수')),
+             ## 국가명을 주석으로 표시
+             annotations = list(x = 0.5 , y = 1.02, text = ~location, 
+                                showarrow = F, xref='paper', 
+                                yref='paper', xanchor = 'center'))
+  ) |>
+  ## 생성된 plotly 객체들을 subplot 생성
+  subplot(nrows = 3, shareX = TRUE, shareY = TRUE) |>
+  ## 생성된 subplot의 layout 설정
+  layout(showlegend = FALSE, 
+         title = '최근 100일간 코로나19 확진자수',
+         margin = margins)
+
+```
+
+## 서브 플롯 범례 설정
+
+앞선 예에서는 서브 플롯으로 사용되는 플롯들의 trace의 색을 강제로 동일하게 맞추고 `annotations`를 사용하여 각각의 플롯의 제목을 설정함으로써 각 플롯 데이터를 설명하였다. 하지만 일반적으로 이들을 범례로써 표현하는데 `subplot()`에 표시되는 범례는 세부 플롯마다 범례가 표시되는 것이 아니라 전체 플롯의 범례로 모아서 하나의 범례로 표시된다. 모아진 범례를 표시하거나 표시하지 않는 것을 결정하는 `subplot()`에서 결정하지 않고 `layout()`의 `showlegend` 속성을 사용해 결정할 수 있다. 또 다른 방법은 `show_legend()`와 `hide_legend()` 함수를 사용하면 범례의 사용을 결정할 수 있다.
+
+```{r eval = FALSE, fig.cap='서브 플롯 생성'}
+## 첫 번째 서브 플롯 생성
+p1 <- p_line_wide |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_한국, name = '한국') |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 두 번째 서브 플롯 생성
+p2 <- p_line_wide |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_아시아, name = '아시아') |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 세 번째 서브 플롯 생성
+p3 <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_유럽, name = '유럽') |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 네 번째 서브 플롯 생성
+p4 <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_북미, name = '북미') |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 댜섯 번째 서브 플롯 생성
+p5 <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_남미, name = '남미') |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 여섯 번째 서브 플롯 생성
+p6 <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date,
+            y = ~확진자_오세아니아, name = '오세아니아') |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 일곱 번째 서브 플롯 생성
+p7 <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_아프리카, name = '아프리카') |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## subplot 설정
+subplot(
+  p1, p2, p3, p4, p5, p6, p7,
+  ## 서브플롯은 3개의 열로 설정
+  nrows = 3,
+  ## 서브플롯간의 여백 설정
+  margin = 0.04) |> 
+  ## 범례는 제거
+  layout(showlegend = TRUE,
+         ## 전체 제목 설정
+         title = '최근 100일간 코로나19 확진자수',
+         ## 전체 여백 설정
+         margin = margins)
+```
+
+```{r echo = FALSE, fig.cap='서브 플롯 생성'}
+## 첫 번째 서브 플롯 생성
+p1_blue <- p_line_wide |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_한국, name = '한국', color = I(RColorBrewer::brewer.pal(10, 'Blues')[9])) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 두 번째 서브 플롯 생성
+p2_blue <- p_line_wide |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_아시아, name = '아시아', color = I(RColorBrewer::brewer.pal(10, 'Blues')[8])) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 세 번째 서브 플롯 생성
+p3_blue <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_유럽, name = '유럽', color = I(RColorBrewer::brewer.pal(10, 'Blues')[7])) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 네 번째 서브 플롯 생성
+p4_blue <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_북미, name = '북미', color = I(RColorBrewer::brewer.pal(10, 'Blues')[6])) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 댜섯 번째 서브 플롯 생성
+p5_blue <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_남미, name = '남미', color = I(RColorBrewer::brewer.pal(10, 'Blues')[5])) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 여섯 번째 서브 플롯 생성
+p6_blue <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date,
+            y = ~확진자_오세아니아, name = '오세아니아', color = I(RColorBrewer::brewer.pal(10, 'Blues')[4])) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## 일곱 번째 서브 플롯 생성
+p7_blue <- p_line_wide  |> 
+  add_trace(type = 'scatter', mode = 'lines', x = ~date, 
+            y = ~확진자_아프리카, name = '아프리카', color = I(RColorBrewer::brewer.pal(10, 'Blues')[3])) |> 
+  layout(title = list(title = NULL),
+         xaxis = list(tickfont = list(size = 10)), 
+         yaxis = list(title = list(text = '확진자수')))
+
+## subplot 설정
+subplot(
+  p1_blue, p2_blue, p3_blue, p4_blue, p5_blue, p6_blue, p7_blue,
+  ## 서브플롯은 3개의 열로 설정
+  nrows = 3,
+  ## 서브플롯간의 여백 설정
+  margin = 0.04) |> 
+  ## 범례는 제거
+  layout(showlegend = TRUE,
+         ## 전체 제목 설정
+         title = '최근 100일간 코로나19 확진자수',
+         ## 전체 여백 설정
+         margin = margins)
+```
+
+## 서브 플롯 위치 배치와 편집
+
+앞서 살펴본 바와 같이 `subplot()`은 서브 플롯안에 포함되는 플롯들의 위치를 행과 열의 설정을 통해 2차원 형태로 배치할 수 있다. 행의 수를 설정하기 위해서는 `nrows` 속성을 사용하지만 열의 수를 설정할 수는 없다는 점을 주의해야 한다. 기본적으로 서브 플롯에 포함되는 플롯들의 크기는 서브 플롯에 설정된 행과 열의 수에 따라 전체 높이와 너비를 동일한 비율로 공유한다. 하지만 이 비율은 `heights`, `widths`를 사용하여 변경할 수 있는데 각각의 플롯의 크기를 변경함으로써 플롯들의 위치와 크기를 사용자가 원하는 대로 편집할 수 있다.
+
+서브 플롯을 원하는 대로 배치하고 크기를 설정하기 위해서는 서브 플롯이 배치되는 방향을 잘 고려해야 한다. 앞서 살펴본 서브 플롯의 경우 p1부터 p7까지를 순서대로 `subplot()`의 매개변수로 설정했다. 그리고 `nrows`를 3으로 설정했기 때문에 7개의 플롯을 표시하기 위해서는 자동적으로 열의 수가 3으로 설정된다. 따라서 전체 플롯을 9개로 등분하고 각각의 매개변수 호출 순서대로 열 방향으로 배치하게 된다. 전체 플롯을 9등분 하기 때문에 2개의 등분은 빈 공간으로 남게 된다. 만약 마지막 행의 빈 공간을 적절히 사용하기 위해서는 `plotly_empty()`를 사용해서 적절한 위치에 비어있는 `plotly` 객체를 넣어 주는 방법을 사용한다.
+
+앞의 예에서는 1행에 p1(한국), p2(아시아), p3(유럽), 2행에 p4(북미), p5(남미), p6(오세아니아)가 배치되고 마지막 행에는 하나 남은 p7(아프리카)가 1열에 배치되며 나머지 2열은 비게 된다. 만약 p1 플롯을 좀 부각시키기 위해서는 다음과 같이 설정할 수 있다.
+
+```{r eval = FALSE, fig.cap='서브 플롯의 크기와 배치 설정'}
+subplot(
+  p1, p2, p3, plotly_empty(), p4, p5, plotly_empty(), p6, p7,
+  ## 서브플롯은 3개의 열로 설정
+  nrows = 3,
+  ## 서브플롯간의 여백 설정
+  heights = c(0.5, 0.25, 0.25), 
+  widths = c(0.5, 0.25, 0.25), 
+  margin = 0.04) |> 
+  ## 범례는 제거
+  layout(showlegend = TRUE,
+         ## 전체 제목 설정
+         title = '최근 100일간 코로나19 확진자수',
+         ## 전체 여백 설정
+         margin = margins)
+
+```
+
+```{r echo = FALSE, fig.cap='서브 플롯의 크기와 배치 설정'}
+subplot(
+  p1_blue, p2_blue, p3_blue, plotly_empty(), p4_blue, p5_blue, plotly_empty(), p6_blue, p7_blue,
+  ## 서브플롯은 3개의 열로 설정
+  nrows = 3,
+  ## 서브플롯간의 여백 설정
+  heights = c(0.5, 0.25, 0.25), 
+  widths = c(0.5, 0.25, 0.25), 
+  margin = 0.04) |> 
+  ## 범례는 제거
+  layout(showlegend = TRUE,
+         ## 전체 제목 설정
+         title = '최근 100일간 코로나19 확진자수',
+         ## 전체 여백 설정
+         margin = margins)
+
+```
+
+앞의 서브 플롯을 보면 한국 플롯이 크게 표현되어 강조되는 효과를 내기는 했지만 같은 행, 같은 열에 있는 플롯들은 한쪽으로 길게 표시되어 보기에 어색해 보인다. 이를 해결하기 위해서는 `subplot()`을 중첩해서 해결할 수 있다. `subplot()`을 중첩하여 사용한다는 것은 `subplot()`으로 완성된 서브 플롯을 다시 `subplot()`으로 배열한다는 것이다.
+
+다음은 한국을 위에 길게 표현하고 아래에 6개의 플롯을 2행으로 배열하는 예이다. 다음의 예에서는 p1(한국)과 p2부터 p7까지의 플롯을 `subplot()`으로 하나의 `plotly`로 생성하여 이 두개의 플롯을 다시 `subplot()`으로 붙여주는 코드이다.
+
+```{r eval=FALSE, fig.cap='크기와 배치를 수정한 서브 플롯'}
+subplot(
+  ## 아래의 nrows가 2이기 때문에 맨 위 열에 p1 하나를 위치시킴
+  p1, 
+  ## subplot()으로 p2부터 p7까지를 묶어 하나의 플롯으로 만듬
+  subplot(p2, p3, p4, p5, p6, p7,
+  ## 서브플롯은 2개의 열로 설정함으로써 2행 3열 서브 플롯 생성
+  nrows = 2), 
+  ## 전체 서브 플롯은 2열로 구성
+  nrows = 2
+)
+
+```
+
+```{r echo=FALSE, fig.cap='크기와 배치를 수정한 서브 플롯'}
+subplot(
+  ## 아래의 nrows가 2이기 때문에 맨 위 열에 p1 하나를 위치시킴
+  p1_blue, 
+  ## subplot()으로 p2부터 p7까지를 묶어 하나의 플롯으로 만듬
+  subplot(p2_blue, p3_blue, p4_blue, p5_blue, p6_blue, p7_blue,
+  ## 서브플롯은 2개의 열로 설정함으로써 2행 3열 서브 플롯 생성
+  nrows = 2), 
+  ## 전체 서브 플롯은 2열로 구성
+  nrows = 2
+)
+
+```
+
+## 축 공유
+
+`subplot()`으로 완성되는 시각화는 `layout()`으로 세부 속성의 설정이 가능하다. 하지만 `subplot()`에서 사용되는 속성값이 몇 개 있는데 그 중 꼭 알아두어야 하는 속성 값이 `shareX`와 `shareY`이다. 이 두 속성은 서브 플롯에 표시되는 각각의 플롯의 X, Y축을 공유할지를 결정하는 속성이다. 이 속성값이 `shareX`값이 TRUE로 설정되면 수직으로 같은 열에 표시된 서브플롯들의 X축은 모두 스케일로 고정된다. 하지만 각각의 열들의 X축은 모두 각각의 열에 적합한 축으로 표현되기 때문에 열 별로는 X축의 스케일이 달라질 수 있다. 마찬가지로 `shareY`가 TRUE로 설정되면 전체 플롯의 같은 행에 표현된 서브 플롯은 같은 스케일의 Y축을 공유한다.
+
+```{r eval = FALSE, fig.cap='shareX, shareY가 설정된 subplot'}
+subplot(
+  p1, 
+  subplot(p2, p3, p4, p5, p6, p7,
+          nrows = 2, 
+          ## shareX, shareY를 TRUE로 설정하여 축 공유
+          shareX = TRUE, shareY = TRUE), 
+  nrows = 2, margin = 0.04
+  ## shareX, shareY를 TRUE로 설정하여 축 공유
+  ) |> 
+  layout(showlegend = TRUE, 
+         title = '최근 100일간 코로나19 확진자수',
+         margin = margins)
+```
+
+```{r echo = FALSE, fig.cap='shareX, shareY가 설정된 subplot'}
+subplot(
+  p1_blue, 
+  subplot(p2_blue, p3_blue, p4_blue, p5_blue, p6_blue, p7_blue,
+          nrows = 2, 
+          ## shareX, shareY를 TRUE로 설정하여 축 공유
+          shareX = TRUE, shareY = TRUE), 
+  nrows = 2, margin = 0.04
+  ## shareX, shareY를 TRUE로 설정하여 축 공유
+  ) |> 
+  layout(showlegend = TRUE, 
+         title = '최근 100일간 코로나19 확진자수',
+         margin = margins)
+```
+
+만약 모든 서브 플롯의 X, Y축의 스케일을 동일하게 표현하기 위해서는 각각의 서브 플롯의 X, Y축의 `range` 속성을 설정함으로써 가능하다.
+
+```{r eval = FALSE, fig.cap='축 범위가 설정된 subplot'}
+## 서브 플롯들의 Y축 범위 설정
+p2 <- p2 |> layout(yaxis = list(range = c(0, 2000000)))
+
+p3 <- p3 |> layout(yaxis = list(range = c(0, 2000000)))
+
+p4 <- p4 |> layout(yaxis = list(range = c(0, 2000000)))
+
+p5 <- p5 |> layout(yaxis = list(range = c(0, 2000000)))
+
+p6 <- p6 |> layout(yaxis = list(range = c(0, 2000000)))
+
+p7 <- p7 |> layout(yaxis = list(range = c(0, 2000000)))
+
+subplot(
+  p1, 
+  subplot(p2, p3, p4, p5, p6, p7,
+          nrows = 2, 
+          shareX = TRUE, shareY = TRUE), 
+  nrows = 2, margin = 0.04
+  ## shareX, shareY를 TRUE로 설정하여 축을 공유
+  ) |> 
+  layout(showlegend = TRUE, 
+         title = '최근 100일간 코로나19 확진자수',
+         margin = margins)
+
+```
+
+```{r echo = FALSE, fig.cap='축 범위가 설정된 subplot'}
+## 서브 플롯들의 Y축 범위 설정
+p2_blue <- p2_blue |> layout(yaxis = list(range = c(0, 2000000)))
+
+p3_blue <- p3_blue |> layout(yaxis = list(range = c(0, 2000000)))
+
+p4_blue <- p4_blue |> layout(yaxis = list(range = c(0, 2000000)))
+
+p5_blue <- p5_blue |> layout(yaxis = list(range = c(0, 2000000)))
+
+p6_blue <- p6_blue |> layout(yaxis = list(range = c(0, 2000000)))
+
+p7_blue <- p7_blue |> layout(yaxis = list(range = c(0, 2000000)))
+
+subplot(
+  p1_blue, 
+  subplot(p2_blue, p3_blue, p4_blue, p5_blue, p6_blue, p7_blue,
+          nrows = 2, 
+          shareX = TRUE, shareY = TRUE), 
+  nrows = 2, margin = 0.04
+  ## shareX, shareY를 TRUE로 설정하여 축을 공유
+  ) |> 
+  layout(showlegend = TRUE, 
+         title = '최근 100일간 코로나19 확진자수',
+         margin = margins)
+
+```
+
+# 정적 시각화(ggplot, matplotlib)의 plotly 변환
+
+기존의 데이터 분석에서 시각화를 위해 많이 사용하는 패키지가 R은 `ggplot2`일 것이고 python 사용자는 `matplotlib`이나 `seaborn`을 사용한다. `plotly`는 이들 정적 시각화를 인터랙티브 데이터 시각화로 변환하는 기능도 제공하기 때문에 기존의 시각화도 재활용할 수 있다.
+
+-   R
+
+R의 경우는 `plotly` 패키지에서 제공하는 `ggplotly()`를 사용하면 간단히 변환된다. `ggplot2`로 생성된 객체를 `ggplotly()`에 매개변수로 전달해 주면 `plotly` 객체로 변환된다.
+
+::: {custom-style="comment"}
+ggplotly(p = ggplot2::last_plot(), width = NULL, height = NULL, tooltip = "all", dynamicTicks = FALSE, layerData = 1, originalData = TRUE, source = "A", ...)\
+- p : plotly로 전환할 ggplot 객체\
+- width : plotly 객체의 너비 설정\
+- height : plotly 객체의 높이 설정\
+- tooltip : plotly 객체에서 마우스의 위치에 따라 표시되는 툴팁의 문자열 설정\
+- dynamicTicks : plotly 객체가 Zooming 될 때 눈금자(Tick)을 동적으로 재설정할 것인지를 설정하는 논리값\
+- layerData : 레이어의 데이터를 리턴할지를 설정\
+- originalData : 원천 데이터(original)를 리턴할지 스케일(scale)된 데이터를 리턴할지를 설정하는 논리값
+:::
+
+같다.
+
+```{r eval = FALSE, fig.cap='ggplot2 객체의 전환'}
+ggplotly <- df_covid19_100 |> 
+  ggplot(aes(x = date, y = new_cases, color = location )) +
+  geom_line(aes(group = location, linetype = location)) +
+  scale_x_date(breaks = '1 months') +
+  scale_y_continuous(labels = scales::comma) +
+  labs(x = '날짜', y = '확진자수', linetype = '지역', color = '지역')
+
+## ggplot객체를 plotly 객체로 변환
+ggplotly(ggplotly)
+
+```
+
+```{r echo = FALSE, fig.cap='ggplot2 객체의 전환'}
+ggplotly <- df_covid19_100 |> 
+  ggplot(aes(x = date, y = new_cases, color = location )) +
+  geom_line(aes(group = location, linetype = location)) +
+  scale_x_date(breaks = '1 months') +
+  scale_y_continuous(labels = scales::comma) +
+  scale_color_brewer(palette = 'Blues', direction = -1) + 
+  labs(x = '날짜', y = '확진자수', linetype = '지역', color = '지역')
+
+## ggplot객체를 plotly 객체로 변환
+ggplotly(ggplotly)
+
+```
+
+-   python
+
+python의 경우는 `plotly.tools` 패키지의 `mpl_to_plotly()`를 사용하여 `matplotlib`과 `seaborn` 패키지로 생성된 정적 시각화를 `plotly`의 동적 시각화로 변환할 수 있다.
+
+```{python eval = FALSE}
+import seaborn as sns
+import plotly.tools as tls
+
+sns.lineplot(x="date", y="new_cases",
+             hue="location",
+             data=df_covid19_100)
+
+mpl_fig = plt.gcf()
+plotly_fig = tls.mpl_to_plotly(mpl_fig)
+plotly_fig.show()
+
+```
+
+![tls.mpl_to_plotly](D:/R/git/datavisualization/plotly/chap2/tls.mpl_to_plotly.png)
+
+# plotly 시각화 사용하기
+
+R의 `ggplot2`나 python의 `matplotlib`, `seaborn`로 만든 정적 시각화는 그래프를 만들때 시각화한 데이터 외에 시각화 자체에서 추가적인 데이터를 얻기가 어렵다. 따라서 시각화에 추가적인 데이터를 제공하기 위해서는 다시 코딩해서 만들어야하는 불편함이 따른다. 특히 특정 위치의 데이터 값을 확인하거나 특정 구간 데이터를 줌인하기 위해서도 다시 코딩해야하는데 사용자의 사용을 예상하여 따라 수없이 많은 시각화를 만들어 놓을 수는 없다. 반면 `plotly`와 같은 동적 시각화에서는 특징적 데이터 값의 확인, 줌인, 줌 아웃, 특정 데이터만의 표기 등과 같은 탐색적 데이터 분석에 자유롭게 사용할 수 있는 다양한 기능을 제공한다.
+
+## modebar의 사용
+
+`plotly`가 시각화 사용자와의 상호작용을 위한 주요 기능을 제공하는 메뉴가 'modebar'이다. 'modebar'는 `plotly`가 실행되는 R-Studio나 웹 브라우저에서 오른쪽 상단에 나타나는 버튼 메뉴를 말한다. 기본적으로 설정되는 'modebar'는 다음의 그림과 같이 8개의 기능을 버튼을 통해 제공한다.
+
+![modebar 버튼과 기능](D:/R/git/datavisualization/plotly/chap3/ployly_3_1.png)
+
+## 마우스를 사용한 데이터 확인
+
+`plotly` 시각화에서 가장 쉽게 사용하는 기능은 마우스를 사용하여 해당 위치의 데이터 정보를 확인하는 기능이다. `plotly` 객체로 생성된 시각화 위에 표현된 각 trace들은 자체 데이터를 JSON의 형태로 포함하고 있기 때문에 마우스 포인터를 trace위에 위치시키면 해당 trace의 정보가 표시된다.
+
+마우스 포인터를 사용하여 표시되는 기본 정보는 X, Y축에 매핑된 정보와 trace에 설정되거나 매핑된 `name` 속성이 표시된다. 이 정보를 변경하기 위해서는 두가지 방법이 있는데 앞선 plotly 시각화 생성에서 설명한 호버(hover)의 설정인 `hoverinfo`를 사용하는 방법과 `hovertemplate`를 사용하는 방법이다. `hoverinfo`(실행결과 2-\*)를 사용하는 방법이 보다 간단하고 쉬운 반면 `hovertemplate`(실행결과 2-\*)는 표시되는 정보를 세부적으로 설정할 수 있다는 장점이 있다.
+
+![박스 trace의 정보 표시](D:/R/git/datavisualization/plotly/chap3/ployly_3_2.png)
+
+## 마우스 드래그를 통한 줌
+
+`plotly`로 완성된 시각화에서 trace가 나타나는 plotting area에서 마우스를 클릭한 상태로 드래그하면 다음 그림과 같이 줌 인 영역을 선택할 수 있다. 이렇게 영역을 선택한 후에 마우스 클릭을 놓으면 해당 부분이 줌인 되어 표시되게 된다. 만약 다시 처음의 상태로 돌아가려면 모드바의 집 아이콘인 'Reset Axes' 버튼을 사용한다.
+
+![마우스 드래그를 통한 줌](D:/R/git/datavisualization/plotly/chap3/ployly_3_3.png)
+
+## 마우스 휠을 사용한 줌
+
+줌인과 줌아웃을 지원하는 많은 프로그램에서는 마우스 휠을 사용하는 프로그램이 많다. `plotly`도 마우스 휠을 사용하여 줌인과 줌아웃을 사용할 수 있는데 이 기능은 기본적으로 지원하지 않고 `config()`를 사용하여 설정해야 한다. `config()`는 `plotly` 시각화가 사용자와의 상호작용을 지원하는 기능을 조절하고 설정하는 다양한 속성을 조절하는 함수이다. `config()`에서 설정할 수 있는 주요 속성은 다음과 같다.[^6]
+
+[^6]: <https://github.com/plotly/plotly.js/blob/master/src/plot_api/plot_config.js>
+
++------------------------+------------------------------------------------+---------------------------------------------------+------------------------------------------------------------------------------------------+
+| 속성                   | 설명                                           | 속성값                                            | 세부 속성                                                                                |
++========================+================================================+===================================================+==========================================================================================+
+| staticPlot             | 정적 시각화로 설정                             | 논리값                                            |                                                                                          |
++------------------------+------------------------------------------------+---------------------------------------------------+------------------------------------------------------------------------------------------+
+| editable               | 시각화를 편집할 수 있는지를 설정               | 논리값                                            |                                                                                          |
++------------------------+------------------------------------------------+---------------------------------------------------+------------------------------------------------------------------------------------------+
+| edit                   | editable이 TRUE인 경우 편집 가능한 세부 속성   | 세부 속성들의 리스트                              | annotationPosition, annotationText, axisTitleText, legendPosition, legendText, titleText |
++------------------------+------------------------------------------------+---------------------------------------------------+------------------------------------------------------------------------------------------+
+| scrollZoom             | 마우스 휠을 줌으로 사용할지를 설정             | 'cartesian', 'gl3d', 'geo', 'mapbox', TRUE, FALSE |                                                                                          |
++------------------------+------------------------------------------------+---------------------------------------------------+------------------------------------------------------------------------------------------+
+| doubleClick            | 마우스 더블 클릭을 어떤 기능으로 사용할지 설정 | FALSE, 'reset', 'autosize', 'reset+autosize'      |                                                                                          |
++------------------------+------------------------------------------------+---------------------------------------------------+------------------------------------------------------------------------------------------+
+| showTips               | 팁(호버)를 사용할지 설정                       | 논리값                                            |                                                                                          |
++------------------------+------------------------------------------------+---------------------------------------------------+------------------------------------------------------------------------------------------+
+| displayModeBar         | 모드바의 표시 방법 설정                        | 'hover', TRUE, FALSE                              |                                                                                          |
++------------------------+------------------------------------------------+---------------------------------------------------+------------------------------------------------------------------------------------------+
+| modeBarButtonsToRemove | 모드바의 버튼 중 없앨 버튼 설정                | 버튼 ID 문자열                                    |                                                                                          |
++------------------------+------------------------------------------------+---------------------------------------------------+------------------------------------------------------------------------------------------+
+| modeBarButtonsToAdd    | 모드바에 포함시킬 버튼 설정                    | 버튼 ID 문자열                                    |                                                                                          |
++------------------------+------------------------------------------------+---------------------------------------------------+------------------------------------------------------------------------------------------+
+| toImageButtonOptions   | 이미지 저장 버튼의 설정                        |                                                   |                                                                                          |
++------------------------+------------------------------------------------+---------------------------------------------------+------------------------------------------------------------------------------------------+
+| displaylogo            | 모드바의 plotly 로고를 표시할지 설정           | 논리값                                            |                                                                                          |
++------------------------+------------------------------------------------+---------------------------------------------------+------------------------------------------------------------------------------------------+
+
+## 축의 이동
+
+`plotly` 시각화에서 마우스를 사용한 기능중에 또 하나가 축의 이동이다. `plotly`의 플롯 영역(plotting area)에서 마우스를 클릭하고 드래그를 하면 줌인의 기능을 위한 사각형이 만들어지지만 X, Y축의 위치에서 마우스를 클릭하고 드래그하면 축을 이동시킬수 있다. 따라서 줌인한 후에 축을 이동시키면 사용자가 자세히 보기를 원하는 지역의 데이터를 확인할 수 있다.
+
+![축의 이동](D:/R/git/datavisualization/plotly/chap3/ployly_3_4.png)
+
+## 범례의 사용
+
+`plotly`에서 범례는 단순히 trace들의 이름과 표현방식을 매핑해주는 역할을 넘어 trace들의 표시를 조절할 수 있는 기능이 있다. 범례의 아이템을 클릭하면 해당 trace가 표시를 토글하는 역할을 한다. 따라서 여러 데이터 trace중에 특정한 trace만을 확인하기 위해서 해당 trace만 남기고 다른 trace의 표시를 꺼둘수 있는 기능이 있다. 또 `legendgroup`으로 그룹화된 범례는 해당 그룹의 아이템의 클릭만으로 그 그룹의 전체 trace를 켜거나 꺼둘 수 있다.
+
+![범례의 토글](D:/R/git/datavisualization/plotly/chap3/ployly_3_5.png)

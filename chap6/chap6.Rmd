@@ -1,0 +1,1547 @@
+---
+title : VI. 지수와 지도의 시각화
+output: 
+  officedown::rdocx_document:
+    plots:
+      fig_caption: no
+      style: Normal
+      align: center
+      caption:
+        style: Image Caption
+        pre: '실행결과 IV - '
+        sep: 'R. '
+        topcaption: false
+      Normal: ['First Paragraph']
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 6.5, dpi = 130, eval = FALSE)
+library(showtext)
+showtext_auto()
+
+library(tidyverse)
+library(readxl)
+library(readr)
+library(lubridate)
+library(plotly)
+```
+
+```{r echo = FALSE, message = FALSE, warning = FALSE, eval = TRUE}
+df_covid19 <- read_csv(file = "D:/R/data/Rnpy/owid-covid-data.csv",
+                            col_types = cols(date = col_date(format = "%Y-%m-%d")
+                                             )
+                            )
+df_covid19_100 <- df_covid19 |> 
+  filter(iso_code %in% c('KOR', 'OWID_ASI', 'OWID_EUR', 'OWID_OCE', 'OWID_NAM', 'OWID_SAM', 'OWID_AFR')) |>
+  filter(date >= max(date) - 100) |>
+  mutate(location = case_when(
+    location == 'South Korea' ~ '한국', 
+    location == 'Asia' ~ '아시아', 
+    location == 'Europe' ~ '유럽', 
+    location == 'Oceania' ~ '오세아니아', 
+    location == 'North America' ~ '북미', 
+    location == 'South America' ~ '남미', 
+    location == 'Africa' ~ '아프리카')) |>
+  mutate(location = fct_relevel(location, '한국', '아시아', '유럽', '북미', '남미', '아프리카', '오세아니아')) |>
+  arrange(date)
+
+df_covid19_100_wide <- df_covid19_100 |>
+  select(date, location, new_cases, people_fully_vaccinated_per_hundred) |>
+  rename('date' = 'date', '확진자' = 'new_cases', '백신접종완료자' = 'people_fully_vaccinated_per_hundred') |>
+  pivot_wider(id_cols = date, names_from = location, 
+              values_from = c('확진자', '백신접종완료자')) |>
+  arrange(date)
+
+df_covid19_stat <- df_covid19 |> 
+  group_by(iso_code, continent, location) |>
+  summarise(인구수 = max(population, na.rm = T), 
+            전체사망자수 = sum(new_deaths, na.rm = T), 
+            백신접종자완료자수 = max(people_fully_vaccinated, na.rm = T),
+            인구백명당백신접종완료율 = max(people_fully_vaccinated_per_hundred, na.rm = T),
+            인구백명당부스터접종자수 = max(total_boosters_per_hundred, na.rm = T)) |> 
+    ungroup() |>
+    mutate(십만명당사망자수 = round(전체사망자수 / 인구수 *100000, 5),
+           백신접종완료율 = 백신접종자완료자수 / 인구수)
+
+margins_R <- list(t = 50, b = 25, l = 25, r = 25)
+
+
+df_취업률 <- read_excel('d:/R/data/Rnpy/2021년 학과별 고등교육기관 취업통계.xlsx', 
+                     ## '학과별' 시트의 데이터를 불러오는데,
+                     sheet = '학과별',
+                     ## 앞의 13행을 제외하고
+                     skip = 13, 
+                     ## 첫번째 행은 열 이름으로 설정
+                     col_names = TRUE, 
+                     ## 열의 타입을 설정, 처음 9개는 문자형으로 다음 79개는 수치형으로 설정
+                     col_types = c(rep('text', 9), rep('numeric', 79)))
+
+## df_취업률에서 첫번째부터 9번째까지의 열과 '계'로 끝나는 열을 선택하여 다시 df_취업률에 저장
+df_취업률 <- df_취업률 |> 
+  select(1:9, ends_with('계'), '입대자')
+
+## df_취업률에서 졸업자가 500명 이하인 학과 2000개 샘플링
+df_취업률_500 <- df_취업률 |> 
+  filter(졸업자_계 < 500) |>
+  mutate(id = row_number()) |>
+  filter(row_number() %in% seq(from = 1, to = nrow(df_취업률), by = 4))
+
+## 열 이름을 적절히 설정
+names(df_취업률_500)[10:12] <- c('졸업자수', '취업률', '취업자수')
+
+```
+
+```{python echo = FALSE, message = FALSE, warning = FALSE, eval = FALSE}
+import pandas as pd
+from datetime import datetime, timedelta
+from pandas.api.types import CategoricalDtype
+from matplotlib import pyplot as plt
+import plotly.graph_objects as go
+
+df_covid19 = pd.read_csv("D:/R/data/Rnpy/owid-covid-data.csv")
+
+df_covid19['date'] = pd.to_datetime(df_covid19['date'], format="%Y-%m-%d")
+
+df_covid19_100 = df_covid19[(df_covid19['iso_code'].isin(['KOR', 'OWID_ASI', 'OWID_EUR', 'OWID_OCE', 'OWID_NAM', 'OWID_SAM', 'OWID_AFR'])) & (df_covid19['date'] >= (max(df_covid19['date']) - timedelta(days = 100)))]
+
+
+df_covid19_100.loc[df_covid19_100['location'] == 'South Korea', "location"] = '한국'
+df_covid19_100.loc[df_covid19_100['location'] == 'Asia', "location"] = '아시아'
+df_covid19_100.loc[df_covid19_100['location'] == 'Europe', "location"] = '유럽'
+df_covid19_100.loc[df_covid19_100['location'] == 'Oceania', "location"] = '오세아니아'
+df_covid19_100.loc[df_covid19_100['location'] == 'North America', "location"] = '북미'
+df_covid19_100.loc[df_covid19_100['location'] == 'South America', "location"] = '남미'
+df_covid19_100.loc[df_covid19_100['location'] == 'Africa', "location"] = '아프리카'
+
+ord = CategoricalDtype(categories = ['한국', '아시아', '유럽', '북미', '남미', '아프리카', '오세아니아'], ordered = True)
+
+df_covid19_100['location'] = df_covid19_100['location'].astype(ord)
+
+df_covid19_100 = df_covid19_100.sort_values(by = 'date')
+
+df_covid19_100_wide = df_covid19_100.loc[:,['date', 'location', 'new_cases', 'people_fully_vaccinated_per_hundred']].rename(columns={'new_cases':'확진자', 'people_fully_vaccinated_per_hundred':'백신접종완료자'})
+
+df_covid19_100_wide = df_covid19_100_wide.pivot(index='date', columns='location', values=['확진자', '백신접종완료자']).sort_values(by = 'date')
+
+df_covid19_100_wide.columns = ['확진자_한국', '확진자_아시아', '확진자_유럽', '확진자_북미', '확진자_남미', '확진자_아프리카','확진자_오세아니아',
+                              '백신접종완료자_한국', '백신접종완료자_아시아', '백신접종완료자_유럽', '백신접종완료자_북미', '백신접종완료자_남미', '백신접종완료자_아프리카','백신접종완료자_오세아니아']
+                              
+df_covid19_stat = df_covid19.groupby(['iso_code', 'continent', 'location'], dropna=False).agg(
+    인구수 = ('population', 'max'),
+    전체확진자수 = ('new_cases', 'sum'),
+    전체사망자수 = ('new_deaths', 'sum'), 
+    백신접종자완료자수 = ('people_fully_vaccinated', 'max'),
+    인구백명당백신접종완료율 = ('people_fully_vaccinated_per_hundred', 'max'),
+    인구백명당부스터접종자수 = ('total_boosters_per_hundred', 'max')
+).reset_index()
+
+df_covid19_stat['십만명당사망자수'] = round(df_covid19_stat['전체사망자수'] / df_covid19_stat['인구수'] *100000, 5)
+
+df_covid19_stat['백신접종완료율'] = df_covid19_stat['백신접종자완료자수'] / df_covid19_stat['인구수']
+
+######################################   
+## python 코드
+## 대학 학과 취업률 데이터 셋
+
+df_취업률 = pd.read_excel("d:/R/data/Rnpy/2021년 학과별 고등교육기관 취업통계.xlsx", 
+                           sheet_name = '학과별',
+                           skiprows=(13), 
+                           header = 0)
+
+df_취업률 = pd.concat([df_취업률.iloc[:, 0:8], 
+                    df_취업률.loc[:, df_취업률.columns.str.endswith('계')], 
+                    df_취업률.loc[:, '입대자']], 
+                   axis = 1
+                   )
+
+df_취업률_2000 = df_취업률.loc[(df_취업률['졸업자_계'] < 500)]
+
+df_취업률_2000 = df_취업률_2000.iloc[range(0, len(df_취업률_2000.index) , 4)]
+
+df_취업률_2000 = df_취업률_2000.rename(columns = {'졸업자_계':'졸업자수', '취업률_계':'취업률', '취업자_합계_계':'취업자수'})
+
+margins_P = dict(t = 50, b = 25, l = 25, r = 25)
+
+```
+
+이번 장에서는 plotly가 다른 시각화 패키지와 차별적으로 제공하는 지수(index)의 시각화와 지도의 시각화를 살펴보도록 하겠다.
+
+지수(Index)는 데이터의 특징을 대표하는 하나의 수치로 표현한 것을 말한다. 평균, 표준편차와 같은 수치도 가장 흔하게 만날 수 있는 지수 중에 하나이고, 매일 매일 주식 시장 전체의 가격 변동을 종합한 KOPIS나 KOSDAQ와 같은 주가 종합 지수도 있다. plotly는 이렇게 지수로 표현되는 수치를 시각화하는 방법을 제공한다. 
+
+지도(Map)의 시각화는 매우 흔하게 사용하는 시각화이지만, 다소 까다롭게 느껴지는 시각화이다. 보통 행정 구역과 같은 공간 단위별로 수집된 데이터를 무늬나 색상의 단계로 표현하는 단계 구분도(Choropleth map)나 위도, 경도 데이터를 가진 객체를 지도 위에 표현하는 분산 맵(Scatter map) 등이 사용된다.
+
+# 인디케이터(indicator)
+
+인디케이터의 사전적 의미는 '가리키는 것'이다. 특정한 지시, 징후, 징표를 가리키는 것이라는 의미가 적절할 것이다. plotly에서 인디케이터의 의미는 'value' 속성으로 지정된 단일 값을 시각화하는 것이다. 
+
+plotly에서는 인디케이터를 시각화하기 위해 indicator 트레이스를 제공한다. indicator 트레이스는 인디케이터로 표현할 수치를 수치, 델타, 게이지의 세 가지 방법을 사용하여 시각화하는 것이다. 이 세 가지 방법은 'mode' 속성을 통해 설정이 가능한데, 다음은 indicator 트레이스에서 사용하는 주요 속성이다.
+
+![표 VI-1. indicator 트레이스의 주요 속성](indicator_attr.png)
+
+## 수치(number) 인디케이터
+
+수치 인디케이터는 단일 수치를 시각화하는 방법이다. 이 수치 인디케이터는 indicator 트레이스 속성 중에 'number'로 설정한다. 다음은 수치 인디케이터의 설정에 사용하는 'number'의 주요 속성이다.
+
+![표 VI-2. indicator 트레이스 number의 주요 속성](indicator_number_attr.png)
+
+수치 인디케이터는 전체 인디케이터에서 표현되는 부분 중에 수치를 표현하는 부분으로, 수치 인디케이터가 단독으로 사용되기보다는 뒤에 설명할 'delta'나 'guage'와 함께 전체 인디케이터를 구성하는 일부분으로 사용되는 것이 일반적이다. 하지만 단순한 현재 수치를 표현할 때는 단독으로 사용될 수 있다.
+
+다음은 주요 5개국의 코로나19 사망자수 선 그래프에 한국의 코로나 사망자 수를 indicator 트레이스로 추가하는 R과 python 코드이다. 한국의 코로나19 사망자 수를 그리고 나서 그래프 영역의 특정 부분(X축의 0.4\~0.6, Y축의 0,85\~0.95)에 수치 속성만을 가지는 indicator 트레이스를 추가하였다. indicator 트레이스의 'value'를 설정하기 위해 앞서 코로나 사망자수를 그리는데 사용했던 total_deaths_5\_nations_by_day 데이터프레임에서 한국의 10만 명당 사망자 수 데이터를 산출하고 이 데이터를 사용하여 indicator 트레이스를 생성하였다. indicator 트레이스의 위치를 설정하는데 'domain' 속성을 사용한다.
+
+-   R
+
+R에서 수치 인디케이터를 만들기 위해서는 indicator 트레이스를 사용한다. `add_trace(type = 'indicator', ...)`로 만드는데, 수치 인디케이터는 'mode' 속성을 "number"로 설정하고 'number' 속성을 설정하여 만든다.
+
+```{r echo=FALSE, eval = TRUE}
+## 5개국 데이터로 전처리
+total_deaths_5_nations_by_day <- df_covid19 |> 
+  filter((iso_code %in% c('KOR', 'USA', 'JPN', 'GBR', 'FRA'))) |>
+  filter(!is.na(total_deaths_per_million))
+
+```
+
+```{r}
+## indicator 트레이스를 위한 데이터 전처리
+number_KOR <- total_deaths_5_nations_by_day |>
+  filter(date == max(date), iso_code == 'KOR') |>
+  select(total_deaths_per_million) |> pull()
+
+fig <- total_deaths_5_nations_by_day |>
+  plot_ly() |>
+  ## scatter 트레이스 생성
+  add_trace(type = 'scatter', mode = 'lines', 
+            x = ~date, y = ~total_deaths_per_million , 
+            linetype = ~location, connectgaps = T) |>
+  ## layout의 제목, 축제목, 여백 속성 설정
+  layout(title = list(text = '코로나 19 사망자수 추세', pad = list(b = 5)), 
+         xaxis = list(title = ''), 
+         yaxis = list(title = '10만명당 사망자수 누계', domain = c(0, 0.8)), 
+         margin = margins_R)
+
+## number 모드의 indicator 트레이스 추가
+fig |> add_trace(type = 'indicator', mode = 'number', value = number_KOR,  
+            title = list(text = paste0('<b>한국 코로나 사망자(10만명당)</b>\n', year(today()), '년', month(today()), '월', day(today()), '일'),
+                     font = list(family = '나눔고딕', size = 15)
+                     ),
+            ## number 속성 설정
+            number = list(font = list(family = '나눔고딕', size = 15), 
+                          suffix = '명'),
+            domain = list(x = c(0.4, 0.6), y = c(0.8, 0.9)))
+
+```
+
+```{r echo=FALSE}
+number_KOR <- total_deaths_5_nations_by_day |>
+  filter(date == max(date), iso_code == 'KOR') |>
+  select(total_deaths_per_million) |> pull()
+
+fig <- total_deaths_5_nations_by_day |>
+  plot_ly() |>
+  ## scatter 트레이스 생성
+  add_trace(type = 'scatter', mode = 'lines', 
+            x = ~date, y = ~total_deaths_per_million , 
+            linetype = ~location, connectgaps = T, 
+            color = ~location, colors = RColorBrewer::brewer.pal(9, 'Blues')[seq(from = 9, to = 5, by = -1)]) |>
+  ## layout의 제목, 축제목, 여백 속성 설정
+  layout(title = list(text = '코로나 19 사망자수 추세', pad = list(b = 5)), 
+         xaxis = list(title = ''), 
+         yaxis = list(title = '10만명당 사망자수 누계', domain = c(0, 0.8)), 
+         margin = margins_R)
+
+## number 모드의 indicator 트레이스 추가
+fig |>
+  add_trace(type = 'indicator', mode = 'number', 
+            value = number_KOR,  
+            title = list(text = paste0('<b>한국 코로나 사망자(10만명당)</b>\n', year(today()), '년', month(today()), '월', day(today()), '일'),
+                     font = list(family = '나눔고딕', size = 15)),
+            number = list(font = list(family = '나눔고딕', size = 15), 
+                          suffix = '명'),
+            domain = list(x = c(0.4, 0.6), y = c(0.8, 0.9)))
+
+```
+
+-   python
+
+python에서 수치 인디케이터를 만들기 위해서는 indicator 트레이스를 사용한다. `add_trace()`에 `plotly.graph_objects.Indicator()`로 만드는데, 수치 인디케이터는 'mode' 속성을 "number"로 설정하고 'number' 속성을 설정하여 만든다.
+
+```{python}
+from datetime import datetime, timedelta
+
+## indicator 트레이스를 위한 데이터 전처리
+today = datetime.today()
+
+number_KOR = total_deaths_5_nations_by_day.loc[(total_deaths_5_nations_by_day['date']==total_deaths_5_nations_by_day['date'].max()) & (total_deaths_5_nations_by_day['iso_code']=='KOR')]
+number_KOR = number_KOR.loc[:,'total_deaths_per_million'].values[0]
+
+fig = go.Figure()
+
+## scatter 트레이스 생성
+for location, group in total_deaths_5_nations_by_day.groupby('location'):
+    fig.add_trace(go.Scatter(
+        mode = 'lines', 
+        x = group['date'], y = group['total_deaths_per_million'], 
+        line = dict(dash = nations[location]), 
+        name = location, connectgaps = True))
+
+fig.update_layout(title = dict(text = '코로나 19 사망자수 추세', x = 0.5), 
+                  xaxis = dict(title = ''), 
+                  yaxis = dict(title = '10만명당 사망자수 누계', domain = (0, 0.8)))   
+
+## number 모드의 indicator 트레이스 추가
+fig.add_trace(go.Indicator(mode = 'number', value = number_KOR,
+    title = dict(text = '<b>한국 코로나 사망자(10만명당)</b><br>' + str(today.year) + '년' + str(today.month) + '월' + str(today.day) + '일\n',
+                 font = dict(family = '나눔고딕', size = 15)),
+    ## number 속성 설정
+    number = dict(font = dict(family = '나눔고딕', size = 15),
+                  suffix = '명'),
+    domain = dict(x = (0.4, 0.6), y = (0.8, 0.9))))
+
+fig.show()
+
+```
+
+```{python echo = FALSE}
+from datetime import datetime, timedelta
+
+today = datetime.today()
+
+number_KOR = total_deaths_5_nations_by_day.loc[(total_deaths_5_nations_by_day['date']==total_deaths_5_nations_by_day['date'].max()) & (total_deaths_5_nations_by_day['iso_code']=='KOR')]
+number_KOR = number_KOR.loc[:,'total_deaths_per_million'].values[0]
+
+fig = go.Figure()
+for location, group in total_deaths_5_nations_by_day.groupby('location'):
+    fig.add_trace(go.Scatter(
+        mode = 'lines', 
+        x = group['date'], 
+        y = group['total_deaths_per_million'], 
+        line = dict(dash = nations[location]), 
+        name = location,
+        connectgaps = True
+    ))
+
+fig.update_layout(title = dict(text = '코로나 19 사망자수 추세', x = 0.5), 
+                  xaxis = dict(title = ''), 
+                  yaxis = dict(title = '10만명당 사망자수 누계', domain = (0, 0.8)), 
+                 colorway = ("#08306B", "#08519C", "#2171B5", "#4292C6", "#6BAED6"))   
+
+fig.add_trace(go.Indicator(
+    mode = 'number', value = number_KOR,
+    title = dict(text = '<b>한국 코로나 사망자(10만명당)</b><br>' + str(today.year) + '년' + str(today.month) + '월' + str(today.day) + '일\n',
+                 font = dict(family = '나눔고딕', size = 15)),
+    number = dict(font = dict(family = '나눔고딕', size = 15),
+                  suffix = '명'),
+    domain = dict(x = (0.4, 0.6), y = (0.8, 0.9))
+))
+
+fig.show()
+
+```
+
+![실행결과 VI-1. 수치 인디케이터가 포함된 R의 선 그래프](./fig/png/6-1.png)
+
+## 델타(delta) 인디케이터
+
+델타 인디케이터는 수치 인디케이터로 표현된 값과 비교 기준값과의 차이를 기호와 증감값을 보여주는 인디케이터이다. 델타 인디케이터는 일반적으로 수치 인디케이터와 병행하여 사용한다. 
+
+다음은 델타 인디케이터의 설정에 사용하는 'delta'의 주요 속성이다.
+
+![표 VI-3. indicator 트레이스 delta의 주요 속성](indicator_delta_attr.png)
+
+-   R
+
+R에서 델타 인디케이터를 만들기 위해서는 indicator 트레이스를 사용한다. `add_trace(type = 'indicator', ...)`로 만드는데, 수치 인디케이터는 'mode' 속성을 "delta"로 설정하고 'delta' 속성을 설정하여 만든다.
+
+```{r}
+number1_KOR <- total_deaths_5_nations_by_day |>
+  filter(date == max(date)-1, iso_code == 'KOR') |>
+  select(total_deaths_per_million) |> pull()
+
+fig <- total_deaths_5_nations_by_day |> plot_ly() |>
+  ## scatter 트레이스 생성
+  add_trace(type = 'scatter', mode = 'lines', 
+            x = ~date, y = ~total_deaths_per_million , 
+            linetype = ~location, connectgaps = T) |>
+  ## layout의 제목, 축제목, 여백 속성 설정
+  layout(title = list(text = '코로나 19 사망자수 추세', pad = list(b = 5)), 
+         xaxis = list(title = ''), 
+         yaxis = list(title = '10만명당 사망자수 누계', domain = c(0, 0.8)), 
+         margin = margins_R)
+
+## number+delta 모드의 indicator 트레이스 추가
+fig |> add_trace(type = 'indicator', mode = 'number+delta', value = number_KOR,  
+            title = list(text = paste0('<b>한국 코로나 사망자(10만명당)</b>\n', year(today()), '년', month(today()), '월', day(today()), '일'),
+                     font = list(family = '나눔고딕', size = 15)),
+            number = list(font = list(family = '나눔고딕', size = 15), 
+                          suffix = '명'),
+            ## delta 속성 설정
+            delta = list(reference = number1_KOR, position = 'right', 
+                         increasing = list(color = 'red'),
+                         decreasing = list(color = 'blue'),
+                         font = list(family = '나눔고딕', size = 10)),
+            domain = list(x = c(0.4, 0.6), y = c(0.8, 0.9)))
+
+```
+
+```{r echo = FALSE}
+number1_KOR <- total_deaths_5_nations_by_day |>
+  filter(date == max(date)-1, iso_code == 'KOR') |>
+  select(total_deaths_per_million) |> pull()
+
+delta_KOR <- number_KOR - number1_KOR 
+
+fig1 <- total_deaths_5_nations_by_day |>
+  plot_ly() |>
+  ## scatter 트레이스 생성
+  add_trace(type = 'scatter', mode = 'lines', 
+            x = ~date, y = ~total_deaths_per_million , 
+            linetype = ~location, connectgaps = T, 
+            color = ~location, colors = RColorBrewer::brewer.pal(9, 'Blues')[seq(from = 9, to = 5, by = -1)]
+) |>
+  ## layout의 제목, 축제목, 여백 속성 설정
+  layout(title = list(text = '코로나 19 사망자수 추세', pad = list(b = 5)), 
+         xaxis = list(title = ''), 
+         yaxis = list(title = '10만명당 사망자수 누계', domain = c(0, 0.8)), 
+         margin = margins_R)
+
+fig1 |>
+  add_trace(type = 'indicator', mode = 'number+delta', 
+            value = number_KOR,  
+            title = list(text = paste0('<b>한국 코로나 사망자(10만명당)</b>\n', year(today()), '년', month(today()), '월', day(today()), '일'),
+                     font = list(family = '나눔고딕', size = 15)),
+            number = list(font = list(family = '나눔고딕', 
+                                      size = 15), 
+                          suffix = '명'),
+            ## delta 속성 설정
+            delta = list(reference = number1_KOR, position = 'right', 
+                         increasing = list(color = 'red'),
+                         decreasing = list(color = 'blue'),
+                         font = list(family = '나눔고딕', size = 10)),
+            domain = list(x = c(0.4, 0.6), y = c(0.8, 0.9)))
+
+```
+
+-   python
+
+python에서 델타 인디케이터를 만들기 위해서는 indicator 트레이스를 사용한다. `add_trace()`에 `plotly.graph_objects.Indicator()`로 만드는데, 델타 인디케이터는 'mode' 속성을 "delta"로 설정하고 'delta' 속성을 설정하여 만든다.
+
+```{python}
+number1_KOR = total_deaths_5_nations_by_day.loc[(total_deaths_5_nations_by_day['date']==total_deaths_5_nations_by_day['date'].max()- timedelta(days = 1)) & (total_deaths_5_nations_by_day['iso_code']=='KOR')]
+number1_KOR = number1_KOR.loc[:,'total_deaths_per_million'].values[0]
+
+fig = go.Figure()
+for location, group in total_deaths_5_nations_by_day.groupby('location'):
+    fig.add_trace(go.Scatter(mode = 'lines', 
+        x = group['date'], y = group['total_deaths_per_million'], 
+        line = dict(dash = nations[location]), 
+        name = location, connectgaps = True))
+
+fig.update_layout(title = dict(text = '코로나 19 사망자수 추세', x = 0.5), 
+                  xaxis = dict(title = ''), 
+                  yaxis = dict(title = '10만명당 사망자수 누계', domain = (0, 0.8)))   
+
+## number+delta 모드의 indicator 트레이스 추가
+fig.add_trace(go.Indicator(
+    mode = 'number+delta', value = number_KOR,
+    title = dict(text = '<b>한국 코로나 사망자(10만명당)</b><br>' + str(today.year) + '년' + str(today.month) + '월' + str(today.day) + '일\n',
+                 font = dict(family = '나눔고딕', size = 15)),
+    number = dict(font = dict(family = '나눔고딕', size = 15),
+                  suffix = '명'),
+    ## delta 속성 설정
+    delta = dict(reference = number1_KOR, position = 'right', 
+                 increasing = dict(color = 'red'),
+                 decreasing = dict(color = 'blue'),
+                 font = dict(family = '나눔고딕', size = 10)),
+    domain = dict(x = (0.4, 0.6), y = (0.8, 0.9))))
+
+fig.show()
+
+```
+
+```{python echo = FALSE}
+number1_KOR = total_deaths_5_nations_by_day.loc[(total_deaths_5_nations_by_day['date']==total_deaths_5_nations_by_day['date'].max()- timedelta(days = 1)) & (total_deaths_5_nations_by_day['iso_code']=='KOR')]
+number1_KOR = number1_KOR.loc[:,'total_deaths_per_million'].values[0]
+
+fig = go.Figure()
+for location, group in total_deaths_5_nations_by_day.groupby('location'):
+    fig.add_trace(go.Scatter(
+        mode = 'lines', 
+        x = group['date'], 
+        y = group['total_deaths_per_million'], 
+        line = dict(dash = nations[location]), 
+        name = location,
+        connectgaps = True
+    ))
+
+fig.update_layout(title = dict(text = '코로나 19 사망자수 추세', x = 0.5), 
+                  xaxis = dict(title = ''), 
+                  yaxis = dict(title = '10만명당 사망자수 누계', domain = (0, 0.8)), 
+                 colorway = ("#08306B", "#08519C", "#2171B5", "#4292C6", "#6BAED6"))   
+
+fig.add_trace(go.Indicator(
+    mode = 'number+delta', value = number_KOR,
+    title = dict(text = '<b>한국 코로나 사망자(10만명당)</b><br>' + str(today.year) + '년' + str(today.month) + '월' + str(today.day) + '일\n',
+                 font = dict(family = '나눔고딕', size = 15)),
+    number = dict(font = dict(family = '나눔고딕', size = 15),
+                  suffix = '명'),
+    delta = dict(reference = number1_KOR, position = 'right', 
+                 increasing = dict(color = 'red'),
+                 decreasing = dict(color = 'blue'),
+                 font = dict(family = '나눔고딕', size = 10)),
+    domain = dict(x = (0.4, 0.6), y = (0.8, 0.9))
+))
+
+fig.show()
+
+```
+
+![실행결과 VI-2. 델타 인디케이터가 표시된 python 선 그래프](./fig/png/6-2.png)
+
+## 게이지(gauge) 인디케이터
+
+게이지 인디케이터는 둥근 반원의 형태의 틀에 둥글게 그려지는 막대의 길이로 지수를 표현하는 시각화이다. 게이지 인디케이터는 최솟값과 최댓값을 미리 설정하고 이 범위 내에서 지수를 표현한다.  또 최솟값과 최댓값 사이에 지수의 안정적 범위를 나타내는 임계치를 표현하기도 한다. 이 시각화를 구성하는데에는 주 표현값인 'value' 값 이외에 'steps', 'threshold', 'delta'의 속성을 사용한다. 게이지 인디케이터는 indicator 트레이스의 'mode' 속성에 "gauge"를 포함하여 만들 수 있다. "gauge"만을 사용하거나, "number+gauge"를 사용하여 수치와 함께 게이지를 사용하거나, "number+gauge+delta"를 사용하여 수치, 게이지, 증감 기호를 모두 사용할 수도 있다.
+
+다음은 게이지 인디케이터의 설정에 사용하는 'gauge'의 주요 속성이다.
+
+![표 VI-4. indicator 트레이스 gauge의 주요 속성](indicator_gauge_attr.png)
+
+다음의 코드는 게이지 인디케이터를 만드는 R과 python의 코드이다. 게이지 인디케이터의 'value'로 데이터의 마지막 날의 10만 명당 사망자 수를 표시하고, 임계치는 해당 국가의 10만 명당 사망 자수 최뎃값으로 설정하였다. 최솟값은 0, 최댓값은 임계의 1.2배 값으로 설정하고, step은 최댓값의 50%와 75%로 설정하였다.    
+-   R
+
+R에서 게이지 인디케이터를 만들기 위해서는 indicator 트레이스를 사용한다. `add_trace(type = 'indicator', ...)`로 만드는데, 수치 인디케이터는 'mode' 속성을 "gauge"로 설정하고 'gauge' 속성을 설정하여 만든다.
+
+```{r}
+## 게이지 indicator 트레이스를 위한 데이터 전처리
+max_deaths_per_million_by_day <- total_deaths_5_nations_by_day |> group_by(location) |>
+  summarise(최대사망자 = max(new_deaths_per_million, na.rm = TRUE))
+
+deaths_per_million_in_lateast <- total_deaths_5_nations_by_day |> group_by(location) |>
+  filter(is.na(new_deaths_per_million) == FALSE) |>
+  filter(date == max(date)) |>
+  select(iso_code, date, new_deaths_per_million)
+
+df_gauge <- left_join(max_deaths_per_million_by_day, deaths_per_million_in_lateast, by = 'location') |> arrange(location)
+
+## 한국 게이지 인디케이터 생성
+fig_gauge <- df_gauge |> plot_ly() |>
+  add_trace(type = 'indicator', mode = "gauge+number", title = pull(df_gauge[3, 1]),
+            domain = list(row = 1, column = 1), value = pull(df_gauge[3, 5]), 
+            gauge = list(axis = list(
+              range = list(NULL, pull(df_gauge[3, 2])*1.2)),
+              steps = list(
+                list(range = c(0, pull(df_gauge[3, 2])*1.2*0.5), color = "lightgray"),
+                list(range = c(pull(df_gauge[3, 2])*1.2*0.5, pull(df_gauge[3, 2])*1.2*0.75), color = "darkgray"),
+                list(range = c(pull(df_gauge[3, 2])*1.2*0.75, pull(df_gauge[3, 2])*1.2), color = "gray")),
+              threshold = list(line = list(color = 'white'),
+                value = pull(df_gauge[3, 2])), 
+              bar = list(color = "darkblue")), 
+            number = list(suffix = '명'))
+
+## 프랑스 게이지 인디케이터 생성
+fig_gauge <- fig_gauge |>
+  add_trace(type = 'indicator', mode = "gauge+number", title = pull(df_gauge[1, 1]),
+            domain = list(row = 0, column = 0), value = pull(df_gauge[1, 5]), 
+            gauge = list(axis = list(
+              range = list(NULL, pull(df_gauge[1, 2])*1.2)),
+              steps = list(
+                list(range = c(0, pull(df_gauge[1, 2])*1.2*0.5), color = "lightgray"),
+                list(range = c(pull(df_gauge[1, 2])*1.2*0.5, pull(df_gauge[1, 2])*1.2*0.75), color = "darkgray"),
+                list(range = c(pull(df_gauge[1, 2])*1.2*0.75, pull(df_gauge[1, 2])*1.2), color = "gray")),
+              threshold = list(line = list(color = 'white'),
+              value = pull(df_gauge[1, 2])), 
+            bar = list(color = "darkblue")), 
+            number = list(suffix = '명'))
+
+## 일본 게이지 인디케이터 생성
+fig_gauge <- fig_gauge |>
+  add_trace(type = 'indicator', mode = "gauge+number", title = pull(df_gauge[2, 1]),
+            domain = list(row = 0, column = 2), value = pull(df_gauge[2, 5]), 
+            gauge = list(axis = list(
+              range = list(NULL, pull(df_gauge[2, 2])*1.2)),
+              steps = list(
+                list(range = c(0, pull(df_gauge[2, 2])*1.2*0.5), color = "lightgray"),
+                list(range = c(pull(df_gauge[2, 2])*1.2*0.5, pull(df_gauge[2, 2])*1.2*0.75), color = "darkgray"),
+                list(range = c(pull(df_gauge[2, 2])*1.2*0.75, pull(df_gauge[2, 2])*1.2), color = "gray")),
+              threshold = list(line = list(color = 'white'),
+              value = pull(df_gauge[2, 2])), 
+            bar = list(color = "darkblue")), 
+            number = list(suffix = '명'))
+
+## 영국 게이지 인디케이터 생성
+fig_gauge <- fig_gauge |>
+  add_trace(type = 'indicator', mode = "gauge+number", title = pull(df_gauge[4, 1]),
+            domain = list(row = 2, column = 0), value = pull(df_gauge[4, 5]), 
+            gauge = list(axis = list(
+              range = list(NULL, pull(df_gauge[4, 2])*1.2)),
+              steps = list(
+                list(range = c(0, pull(df_gauge[4, 2])*1.2*0.5), color = "lightgray"),
+                list(range = c(pull(df_gauge[4, 2])*1.2*0.5, pull(df_gauge[4, 2])*1.2*0.75), color = "darkgray"),
+                list(range = c(pull(df_gauge[4, 2])*1.2*0.75, pull(df_gauge[4, 2])*1.2), color = "gray")),
+              threshold = list(line = list(color = 'white'),
+              value = pull(df_gauge[4, 2])), 
+            bar = list(color = "darkblue")), 
+            number = list(suffix = '명'))
+
+## 미국 게이지 인디케이터 생성
+fig_gauge <- fig_gauge |>
+  add_trace(type = 'indicator', mode = "gauge+number", title = pull(df_gauge[5, 1]),
+            domain = list(row = 2, column = 2), value = pull(df_gauge[5, 5]), 
+            gauge = list(axis = list(
+              range = list(NULL, pull(df_gauge[5, 2])*1.2)),
+              steps = list(
+                list(range = c(0, pull(df_gauge[5, 2])*1.2*0.5), color = "lightgray"),
+                list(range = c(pull(df_gauge[5, 2])*1.2*0.5, pull(df_gauge[5, 2])*1.2*0.75), color = "darkgray"),
+                list(range = c(pull(df_gauge[5, 2])*1.2*0.75, pull(df_gauge[5, 2])*1.2), color = "gray")),
+              threshold = list(line = list(color = 'white'),
+              value = pull(df_gauge[5, 2])), 
+            bar = list(color = "darkblue")), 
+            number = list(suffix = '명'))
+
+fig_gauge |> layout(grid=list(rows=3, columns=3), 
+                    margin = margins_R, 
+                    title = '10만명당 사망자수(최근 공식발표 기준)')
+
+
+```
+
+-   python
+
+python에서 게이지 인디케이터를 만들기 위해서는 indicator 트레이스를 사용한다. `add_trace()`에 `plotly.graph_objects.Indicator()`로 만드는데, 게이지 인디케이터는 'mode' 속성을 "gauge"로 설정하고 'gauge' 속성을 설정하여 만든다.
+
+```{python}
+## 게이지 indicator 트레이스를 위한 데이터 전처리
+deaths_per_million_in_lateast = total_deaths_5_nations_by_day[total_deaths_5_nations_by_day['new_deaths_per_million'].isna() == False]
+deaths_per_million_in_lateast = pd.merge(deaths_per_million_in_lateast.groupby('location')['date'].max(), deaths_per_million_in_lateast, on = ("location", 'date'))[['iso_code', 'location', 'date', 'new_deaths_per_million']]
+df_gauge = pd.merge(deaths_per_million_in_lateast, total_deaths_5_nations_by_day.groupby('location')['new_deaths_per_million'].max().reset_index(), on = 'location').sort_values('location')
+df_gauge.columns = ('iso_code', 'location', 'date', '최근사망자', '최대사망자')
+
+fig = go.Figure()
+
+## 한국 게이지 인디케이터 생성
+fig.add_trace(go.Indicator(
+    type = 'indicator', mode = "gauge+number", title = df_gauge.iloc[2, 1],
+            domain = dict(row = 1, column = 1), value = df_gauge.iloc[2, 3], 
+            gauge = dict(axis = dict(
+              range = (0, df_gauge.iloc[2, 4]*1.2)),
+              steps = [
+                dict(range = (0, (df_gauge.iloc[2, 4])*1.2*0.5), color = "lightgray"),
+                dict(range = ((df_gauge.iloc[2, 4])*1.2*0.5, (df_gauge.iloc[2, 4])*1.2*0.75), color = "darkgray"), 
+                dict(range = ((df_gauge.iloc[2, 4])*1.2*0.75, (df_gauge.iloc[2, 4])*1.2), color = "gray")],
+              threshold = dict(
+                line = dict(color = 'white'),
+                value = df_gauge.iloc[2, 4]), 
+              bar = dict(color = "darkblue")), 
+            number = dict(suffix = '명')))
+
+## 프랑스 게이지 인디케이터 생성
+fig.add_trace(go.Indicator(
+    type = 'indicator', mode = "gauge+number", title = df_gauge.iloc[0, 1],
+            domain = dict(row = 0, column = 0), value = df_gauge.iloc[0, 3], 
+            gauge = dict(axis = dict(
+              range = (0, df_gauge.iloc[0, 4]*1.2)),
+              steps = [
+                dict(range = (0, (df_gauge.iloc[0, 4])*1.2*0.5), color = "lightgray"),
+                dict(range = ((df_gauge.iloc[0, 4])*1.2*0.5, (df_gauge.iloc[0, 4])*1.2*0.75), color = "darkgray"),
+                dict(range = ((df_gauge.iloc[0, 4])*1.2*0.75, (df_gauge.iloc[0, 4])*1.2), color = "gray")],
+              threshold = dict(
+                line = dict(color = 'white'),
+                value = df_gauge.iloc[0, 4]), 
+              bar = dict(color = "darkblue")), 
+            number = dict(suffix = '명')))
+
+## 일본 게이지 인디케이터 생성
+fig.add_trace(go.Indicator(
+    type = 'indicator', mode = "gauge+number", title = df_gauge.iloc[1, 1],
+            domain = dict(row = 0, column = 2), value = df_gauge.iloc[1, 3], 
+            gauge = dict(axis = dict(
+              range = (0, df_gauge.iloc[1, 4]*1.2)),
+              steps = [
+                dict(range = (0, (df_gauge.iloc[1, 4])*1.2*0.5), color = "lightgray"),
+                dict(range = ((df_gauge.iloc[1, 4])*1.2*0.5, (df_gauge.iloc[1, 4])*1.2*0.75), color = "darkgray"),
+                dict(range = ((df_gauge.iloc[1, 4])*1.2*0.75, (df_gauge.iloc[1, 4])*1.2), color = "gray")],
+              threshold = dict(
+                line = dict(color = 'white'),
+                value = df_gauge.iloc[1, 4]), 
+              bar = dict(color = "darkblue")), 
+            number = dict(suffix = '명')))
+
+## 영국 게이지 인디케이터 생성
+fig.add_trace(go.Indicator(
+    type = 'indicator', mode = "gauge+number", title = df_gauge.iloc[3, 1],
+            domain = dict(row = 2, column = 0), value = df_gauge.iloc[3, 3], 
+            gauge = dict(axis = dict(
+              range = (0, df_gauge.iloc[3, 4]*1.2)),
+              steps = [
+                dict(range = (0, (df_gauge.iloc[3, 4])*1.2*0.5), color = "lightgray"),
+                dict(range = ((df_gauge.iloc[3, 4])*1.2*0.5, (df_gauge.iloc[3, 4])*1.2*0.75), color = "darkgray"),
+                dict(range = ((df_gauge.iloc[3, 4])*1.2*0.75, (df_gauge.iloc[3, 4])*1.2), color = "gray")],
+              threshold = dict(
+                line = dict(color = 'white'),
+                value = df_gauge.iloc[3, 4]), 
+              bar = dict(color = "darkblue")), 
+            number = dict(suffix = '명')))
+
+## 미국 게이지 인디케이터 생성
+fig.add_trace(go.Indicator(
+    type = 'indicator', mode = "gauge+number", title = df_gauge.iloc[4, 1],
+            domain = dict(row = 2, column = 2), value = df_gauge.iloc[4, 3], 
+            gauge = dict(axis = dict(
+              range = (0, df_gauge.iloc[4, 4]*1.2)),
+              steps = [
+                dict(range = (0, (df_gauge.iloc[4, 4])*1.2*0.5), color = "lightgray"),
+                dict(range = ((df_gauge.iloc[4, 4])*1.2*0.5, (df_gauge.iloc[4, 4])*1.2*0.75), color = "darkgray"),
+                dict(range = ((df_gauge.iloc[4, 4])*1.2*0.75, (df_gauge.iloc[4, 4])*1.2), color = "gray")],
+              threshold = dict(
+                line = dict(color = 'white'),
+                value = df_gauge.iloc[4, 4]), 
+              bar = dict(color = "darkblue")), 
+            number = dict(suffix = '명')))
+
+fig.update_layout(grid=dict(rows=3, columns=3),
+              title = dict(text = '10만명당 사망자수(최근 공식발표 기준)', x = 0.5))
+
+fig.show()
+
+```
+
+![실행결과 VI-3. R의 게이지 인디테이터](./fig/png/6-3.png)
+
+## 불릿(bullet) 인디케이터
+
+불릿 인디케이터는 막대 그래프를 변형하여 특정 값의 현재 상태를 표시하는 시각화의 방법이다. 온도계나 진행률의 표시에 사용되는 방식을 차용하여 만드는 불릿 인디케이터는 둥글게 표시되는 게이지 인디케이터의 대용으로 대시보드에서 많이 사용된다. 불릿 인디케이터는 단계를 나타내는 질적 단계(step), 양적 막대(value), 임계치의 세 가지 요소로 구성한다. 단계는 일반적으로 배열의 형태로 단계 값들을 지정하여 정의하고, 막대는 표시할 수치의 현재 값을 나타내며, 임계치 데이터는 수치의 목표치나 안정적 데이터 구간을 안정적 데이터 구간을 나타낸다.
+
+불릿 인디케이터는 indicator 트레이스를 사용하여 만들수 있고 게이지 인디케이터의 속성 중 'shape'를 "bullet"으로 설정함으로써 만들 수 있다. 또 게이지 인디케이터의 속성들을 공유한다.
+
+다음의 코드는 불릿 인디케이터를 만드는 R과 python의 코드이다. 불릿 인디케이터의 'value', 'threshold', 'range', 'steps'는 앞선 게이지 인디케이터와 같게 설정하였다.
+
+-   R
+
+R에서 불릿 인디케이터를 만들기 위해서는 indicator 트레이스를 사용한다. `add_trace(type = 'indicator', ...)`로 만드는데, 불릿 인디케이터는 'mode' 속성을 "gauge"로, 'gauge'의 'shape' 속성을 "bullet"으로 설정하고 'gauge' 속성을 설정하여 만든다.
+
+```{r}
+## 한국 불릿 인디케이터 생성
+fig_gauge <- df_gauge |> plot_ly() |>
+  add_trace(type = 'indicator', mode = "gauge+number", title = pull(df_gauge[3, 1]),
+            domain = list(x = c(0.3,0.8), y = c(0.82, 0.9)),
+            value = pull(df_gauge[3, 5]), 
+            gauge = list(axis = list(
+              range = list(NULL, pull(df_gauge[3, 2])*1.2)),
+              steps = list(
+                list(range = c(0, pull(df_gauge[3, 2])*1.2*0.5), color = "lightgray"),
+                list(range = c(pull(df_gauge[3, 2])*1.2*0.5, pull(df_gauge[3, 2])*1.2*0.75), color = "darkgray"),
+                list(range = c(pull(df_gauge[3, 2])*1.2*0.75, pull(df_gauge[3, 2])*1.2), color = "gray")),
+              shape = "bullet",
+              threshold = list(
+                line = list(color = 'white'), value = pull(df_gauge[3, 2])), 
+              bar = list(color = "darkblue")), 
+            number = list(suffix = '명'))
+
+## 프랑스 불릿 인디케이터 생성
+fig_gauge <- fig_gauge |>
+  add_trace(type = 'indicator', mode = "gauge+number", title = pull(df_gauge[1, 1]),
+            domain = list(x = c(0.3,0.8), y = c(0.62, 0.7)),
+            value = pull(df_gauge[1, 5]), 
+            gauge = list(axis = list(
+              shape = "bullet",
+              range = list(NULL, pull(df_gauge[1, 2])*1.2)),
+              steps = list(
+                list(range = c(0, pull(df_gauge[1, 2])*1.2*0.5), color = "lightgray"),
+                list(range = c(pull(df_gauge[1, 2])*1.2*0.5, pull(df_gauge[1, 2])*1.2*0.75), color = "darkgray"),
+                list(range = c(pull(df_gauge[1, 2])*1.2*0.75, pull(df_gauge[1, 2])*1.2), color = "gray")),
+              shape = "bullet",
+              threshold = list(
+              line = list(color = 'white'), value = pull(df_gauge[1, 2])), 
+            bar = list(color = "darkblue")), 
+            number = list(suffix = '명'))
+
+## 일본 불릿 인디케이터 생성
+fig_gauge <- fig_gauge |>
+  add_trace(type = 'indicator', mode = "gauge+number", title = pull(df_gauge[2, 1]),
+            domain = list(x = c(0.3,0.8), y = c(0.42, 0.5)),
+            value = pull(df_gauge[2, 5]), 
+            gauge = list(axis = list(
+              shape = "bullet",
+              range = list(NULL, pull(df_gauge[2, 2])*1.2)),
+              steps = list(
+                list(range = c(0, pull(df_gauge[2, 2])*1.2*0.5), color = "lightgray"),
+                list(range = c(pull(df_gauge[2, 2])*1.2*0.5, pull(df_gauge[2, 2])*1.2*0.75), color = "darkgray"),
+                list(range = c(pull(df_gauge[2, 2])*1.2*0.75, pull(df_gauge[2, 2])*1.2), color = "gray")),
+              shape = "bullet",
+              threshold = list(
+              line = list(color = 'white'), value = pull(df_gauge[2, 2])), 
+            bar = list(color = "darkblue")), 
+            number = list(suffix = '명'))
+
+## 영국 불릿 인디케이터 생성
+fig_gauge <- fig_gauge |>
+  add_trace(type = 'indicator', mode = "gauge+number", title = pull(df_gauge[4, 1]),
+            domain = list(x = c(0.3,0.8), y = c(0.22, 0.3)),
+            value = pull(df_gauge[4, 5]), 
+            gauge = list(axis = list(
+              shape = "bullet",
+              range = list(NULL, pull(df_gauge[4, 2])*1.2)),
+              steps = list(
+                list(range = c(0, pull(df_gauge[4, 2])*1.2*0.5), color = "lightgray"),
+                list(range = c(pull(df_gauge[4, 2])*1.2*0.5, pull(df_gauge[4, 2])*1.2*0.75), color = "darkgray"),
+                list(range = c(pull(df_gauge[4, 2])*1.2*0.75, pull(df_gauge[4, 2])*1.2), color = "gray")),
+              shape = "bullet",
+              threshold = list(
+              line = list(color = 'white'), value = pull(df_gauge[4, 2])), 
+            bar = list(color = "darkblue")), 
+            number = list(suffix = '명'))
+
+## 미국 불릿 인디케이터 생성
+fig_gauge <- fig_gauge |>
+  add_trace(type = 'indicator', mode = "gauge+number", title = pull(df_gauge[5, 1]),
+            domain = list(x = c(0.3,0.8), y = c(0.02, 0.1)),
+            value = pull(df_gauge[5, 5]), 
+            gauge = list(axis = list(
+              shape = "bullet",
+              range = list(NULL, pull(df_gauge[5, 2])*1.2)),
+              steps = list(
+                list(range = c(0, pull(df_gauge[5, 2])*1.2*0.5), color = "lightgray"),
+                list(range = c(pull(df_gauge[5, 2])*1.2*0.5, pull(df_gauge[5, 2])*1.2*0.75), color = "darkgray"),
+                list(range = c(pull(df_gauge[5, 2])*1.2*0.75, pull(df_gauge[5, 2])*1.2), color = "gray")),
+              shape = "bullet",
+              threshold = list(
+              line = list(color = 'white'), value = pull(df_gauge[5, 2])), 
+            bar = list(color = "darkblue")), 
+            number = list(suffix = '명'))
+
+fig_gauge |> layout(margin = margins_R, 
+                    title = '10만명당 사망자수(최근 공식발표 기준)')
+```
+
+-   python
+
+python에서 불릿 인디케이터를 만들기 위해서는 indicator 트레이스를 사용한다. `add_trace()`에 `plotly.graph_objects.Indicator()`로 만드는데 불릿 인디케이터는 'mode' 속성을 "gauge"로, 'gauge'의 'shape' 속성을 "bullet"로 설정하고 'gauge' 속성을 설정하여 만들 수 있다.
+
+```{python}
+fig = go.Figure()
+
+## 한국 불릿 인디케이터 생성
+fig.add_trace(go.Indicator(
+    type = 'indicator', mode = "gauge+number", title = df_gauge.iloc[2, 1],
+            domain = dict(x = (0.3,0.8), y = (0.82, 0.9)),
+            value = df_gauge.iloc[2, 3], 
+            gauge = dict(axis = dict(
+              range = (0, df_gauge.iloc[2, 4]*1.2)),
+              shape = "bullet",
+              steps = [
+                dict(range = (0, (df_gauge.iloc[2, 4])*1.2*0.5), color = "lightgray"),
+                dict(range = ((df_gauge.iloc[2, 4])*1.2*0.5, (df_gauge.iloc[2, 4])*1.2*0.75), color = "darkgray"),
+                dict(range = ((df_gauge.iloc[2, 4])*1.2*0.75, (df_gauge.iloc[2, 4])*1.2), color = "gray")],
+              threshold = dict(
+                line = dict(color = 'white'), value = df_gauge.iloc[2, 4]), 
+              bar = dict(color = "darkblue")), 
+            number = dict(suffix = '명')))
+
+## 프랑스 불릿 인디케이터 생성
+fig.add_trace(go.Indicator(
+    type = 'indicator', mode = "gauge+number", title = df_gauge.iloc[0, 1],
+            domain = dict(x = (0.3,0.8), y = (0.62, 0.7)),
+            value = df_gauge.iloc[0, 3], 
+            gauge = dict(axis = dict(
+              range = (0, df_gauge.iloc[0, 4]*1.2)),
+              shape = "bullet",
+              steps = [
+                dict(range = (0, (df_gauge.iloc[0, 4])*1.2*0.5), color = "lightgray"),
+                dict(range = ((df_gauge.iloc[0, 4])*1.2*0.5, (df_gauge.iloc[0, 4])*1.2*0.75), color = "darkgray"),
+                dict(range = ((df_gauge.iloc[0, 4])*1.2*0.75, (df_gauge.iloc[0, 4])*1.2), color = "gray")],
+              threshold = dict(
+                line = dict(color = 'white'), value = df_gauge.iloc[0, 4]), 
+              bar = dict(color = "darkblue")), 
+            number = dict(suffix = '명')))
+
+## 일본 불릿 인디케이터 생성
+fig.add_trace(go.Indicator(
+    type = 'indicator', mode = "gauge+number", title = df_gauge.iloc[1, 1],
+            domain = dict(x = (0.3,0.8), y = (0.42, 0.5)),
+            value = df_gauge.iloc[1, 3], 
+            gauge = dict(axis = dict(
+              range = (0, df_gauge.iloc[1, 4]*1.2)),
+              shape = "bullet",
+              steps = [
+                dict(range = (0, (df_gauge.iloc[1, 4])*1.2*0.5), color = "lightgray"),
+                dict(range = ((df_gauge.iloc[1, 4])*1.2*0.5, (df_gauge.iloc[1, 4])*1.2*0.75), color = "darkgray"),
+                dict(range = ((df_gauge.iloc[1, 4])*1.2*0.75, (df_gauge.iloc[1, 4])*1.2), color = "gray")],
+              threshold = dict(
+                line = dict(color = 'white'), value = df_gauge.iloc[1, 4]), 
+              bar = dict(color = "darkblue")), 
+            number = dict(suffix = '명')))
+
+## 영국 불릿 인디케이터 생성
+fig.add_trace(go.Indicator(
+    type = 'indicator', mode = "gauge+number", title = df_gauge.iloc[3, 1],
+            domain = dict(x = (0.3,0.8), y = (0.22, 0.3)),
+            value = df_gauge.iloc[3, 3], 
+            gauge = dict(axis = dict(
+              range = (0, df_gauge.iloc[3, 4]*1.2)),
+              shape = "bullet",
+              steps = [
+                dict(range = (0, (df_gauge.iloc[3, 4])*1.2*0.5), color = "lightgray"),
+                dict(range = ((df_gauge.iloc[3, 4])*1.2*0.5, (df_gauge.iloc[3, 4])*1.2*0.75), color = "darkgray"),
+                dict(range = ((df_gauge.iloc[3, 4])*1.2*0.75, (df_gauge.iloc[3, 4])*1.2), color = "gray")],
+              threshold = dict(
+                line = dict(color = 'white'), value = df_gauge.iloc[3, 4]), 
+              bar = dict(color = "darkblue")), 
+            number = dict(suffix = '명')))
+
+## 미국 불릿 인디케이터 생성
+fig.add_trace(go.Indicator(
+    type = 'indicator', mode = "gauge+number", title = df_gauge.iloc[4, 1],
+            domain = dict(x = (0.3,0.8), y = (0.02, 0.1)),
+            value = df_gauge.iloc[4, 3], 
+            gauge = dict(axis = dict(
+              range = (0, df_gauge.iloc[4, 4]*1.2)),
+              shape = "bullet",
+              steps = [
+                dict(range = (0, (df_gauge.iloc[4, 4])*1.2*0.5), color = "lightgray"),
+                dict(range = ((df_gauge.iloc[4, 4])*1.2*0.5, (df_gauge.iloc[4, 4])*1.2*0.75), color = "darkgray"),
+                dict(range = ((df_gauge.iloc[4, 4])*1.2*0.75, (df_gauge.iloc[4, 4])*1.2), color = "gray")],
+              threshold = dict(
+                line = dict(color = 'white'), value = df_gauge.iloc[4, 4]), 
+              bar = dict(color = "darkblue")), 
+            number = dict(suffix = '명')))
+
+fig.update_layout(grid=dict(rows=3, columns=3),
+              title = dict(text = '10만명당 사망자수(최근 공식발표 기준)', x = 0.5))
+
+fig.show()
+```
+
+![실행결과 VI-4. python의 불릿 인디케이터](./fig/png/6-4.png)
+
+# 지도의 시각화
+
+지도의 시각화는 지역별로 구분된 데이터에 대한 매우 효과적인 시각화 방법이다. 사실 지도의 시각화는 엑셀이나 파워포인트, 포토샵이나 일러스트 같은 대중적으로 많이 사용되는 툴에서도 가능하겠지만, 매우 번거로운 작업임이 틀림없다. 또 단순한 지도의 시각화라면 다소의 시간과 많은 정신적 스트레스를 감소하고라도 할 수 있겠지만, 만약 200개가 넘는 시군구 지역별 데이터를 시각화해야 한다면 이는 단순히 시간과 정신적 스트레스과 바꿀 수 있는 작업이 아닐 것이다. 이때는 전문가를 찾아 의뢰하는 것이 해결책이겠지만 항상 전문가들은 바쁘기 때문에 시간이 많이 소요되고 비싸다. plolty는 지도의 시각화에 생각보다 많은 기능이 지원된다.
+
+지도를 시각화하기 위해서는 먼저 몇 가지 알아야 하는 개념이 있다.
+
+## 지도 시각화의 기초 개념
+
+### 지형 데이터
+
+지형 데이터는 지도를 그리기 위한 지형 경계선 다각형 정보를 가지고 있는 데이터를 말한다. 지형 데이터는 다음의 두 가지 형태의 데이터 파일로 제공된다.
+
+-   shape 파일
+
+Shape 파일은 대부분의 GIS(Geographical Information System)에서 사용되는 지형 벡터 데이터 파일 포맷이다. Shape 파일은 보통'\*.shp', '\*.shx', '\*.dbf', '\*.kml', '\*.prj' 등의 파일이 한 세트처럼 제공되는 것이 일반적이다. 그렇다고 이 네 개의 파일을 모두 쓰는 것은 아니고 사용하는 응용에 따라 선택하여 사용할 수 있는데, *.shp 파일에 주요 지형정보가 포함되어 있다.
+
+-   geojson 파일
+
+GeoJSON은 위치정보를 갖는 점을 기반으로 지형을 표현하기 위해 설계된 개방형 공개 표준 형식이다. 지형 정보를 자바스그립트 오브젝트 노테이션(JAVA Script Object Notation, JSON)을 활용하여 표현하는 파일 포맷으로 OpenLayers, Leaflet, MapServer, Geoforge 소프트웨어, GeoServer, GeoDjango, GDAL, Safe Software FME 등 많은 매핑 및 GIS 소프트웨어 패키지에서 지원하고 있다.[^1]
+
+[^1]: <https://ko.wikipedia.org/wiki/GeoJSON>
+
+geojson 파일의 확장자는 '\*.json'이다. geojson 파일은 앞서 설명한 Shape 파일에서부터 변환하여 생성할 수도 있다.
+
+geojson 파일은 Shape 파일에 비해 파일 사이즈가 작고 처리속도도 Shape 파일보다 매우 빠르다는 장점이 있다.
+
+### 지도 투영법
+
+지구는 3차원의 구형태이지만 우리가 보는 지도는 2차원의 평면이다. 따라서 3차원을 2차원에 표현해야 하기 때문에 이 표현의 방법이 여러가지이고, 이를 투영법(Projection)이라고 한다. plotly에서는 이 투영법에 따라 지도가 화면에 표현되는 평태가 달라진다. plolty에서 투영법은 정각도법(equirectangular), 원통도법(mercator), 정사도법(orthographic) 등 총 22개의 투영법을 지원한다.
+
+### 좌표계의 종류
+
+일반적으로 지도의 좌표라고 하면 북위, 남위와 같이 적도를 기준으로 북쪽으로 얼마나 많이 떨어졌는지, 남쪽으로 얼마나 많이 떨어졌는지를 표시하는 위도(latitude)와 동경, 서경과 같이 영국 그리니치 천문대를 기준으로 동쪽으로의 위치, 서쪽으로의 위치를 표시하는 경도(longitude)를 생각한다. 이를 좌표계라고 하는데 이 좌표계도 몇 가지 종류가 있다. 이 좌표계가 어떻게 설정되어 있는가에 따라 같은 위도와 경도의 위치도 달라질 수 있다.
+
+-   WGS84(EPSG:4326): 미국에서 군사용으로 GPS 시스템를 이용하면서 만든 좌표계(경도와 위도)
+
+-   Bessel 1841(EPSG:4004): 3차원 원형 지구를 2차원으로 투영한 결과에 대한 좌표계로 우리나라에서 많이 사용되는 좌표계
+
+-   GRS80 UTM-K(EPSG:5179): 한반도 전체를 하나의 좌표계로, 전국을경도 127.5를 기준으로 설계한 지도로 네이버에서 사용
+
+-   GRS80 중부원점(EPSG:5181): 과거 지리원 좌표계를 타원체로 수정한 좌표계. Kakao, 공공데이터포탈에서 사용
+
+-   Web mercator projection(Pseudo-Mercator, EPSG:3857) : WGS84 타원체의 장반경을 반지름으로 하는 좌표계로 구글, 빙, 야후 등 에서 사용
+
+-   Albers projection(EPSG:9822) : 미국 지질 조사국에서 사용하는 좌표계
+
+## 지도 트레이스
+
+plotly는 지도를 그리기 위해 사용하는 패키지가 아니다. 즉 plotly에서의 지도의 사용은 지역적 데이터를 표현하기 지도를 사용하여 시각화하기 위해 사용하는 것이다. 그렇다면 데이터를 어떻게 지도위에 표현할 것인가가 가장 중요하다. 지도위에 데이터를 표현하는 방법은 지역을 표현하는 다각형의 내부 색을 데이터로 매핑하여 데이터를 표현하는 단계 구분도(Choropleth Map)과 지도의 특정 위치에 데이터를 표기하는 스캐터 맵(Scatter Map)이 많이 사용된다.
+
+plotly에서 지도를 그리기 위해서는 앞서 설명한 두 가지 지형 데이터 타입(shape, geojson)을 사용하는 방법과 인터넷에서 제공하는 지도를 사용하여 그리는 두 가지 방법이 사용된다.
+
+이 두 가지 지도 생성 방법을 사용하여 다음의 다섯 가지 지도 관련 트레이스로 사용하여 목적에 맞는 지도를 만들 수 있다.
+
+-   scattergeo 트레이스 : 지형 데이터 위에 위도와 경도로 표현된 scatter 트레이스의 점이나 선을 표시하는 트레이스
+
+-   choropleth 트레이스 : 지형 데이터의 지형 다각형(polygon)에 'z'로 매핑되는 지형 다각형 내부 색으로 데이터를 표현하는 트레이스
+
+-   scattermapbox 트레이스 : mapbox.com에서 제공하는 맵위에 위도와 경도로 표현된 scatter 트레이스의 점이나 선을 표시하는 트레이스
+
+-   choroplethmapbox 트레이스 : mapbox.com에서 제공하는 맵위에 지형 다각형(polygon)에 'z'로 지형 다각형 내부 색을 통해 데이터를 표현하는 트레이스
+
+-   densitymapbox 트레이스 : 색상을 사용하여 위도, 경도 좌표와 'z'에 매핑된 값에 따른 밀도 커널 데이터를 표현하는 트레이스
+
+plotly의 지도 트레이스를 보면 scattergeo 트레이스와 choropleth 트레이스는 geoJSON이나 shape 파일의 외곽선 지형 기반 지도(plotly geo map)를 사용하는 트레이스이고 scattermapbox, choroplethmapbox, densitymapbox 트레이스는 mapbox.com에서 제공하는 타일 기반 지도를 사용하는 트레이스이다.
+
+지금까지 대부분의 트레이스는 R과 python이 거의 유사한 형태로 사용이 되었다. 하지만 choropleth 트레이스는 R과 python의 방법상 차이가 크다. 그래서 R과 python을 따로 구분하여 설명하는데, 단계 구분도(choropleth)와 맵박스 산점도(scattermapbox)를 그리는 방법을 설명한다.
+
+위의 두 가지 지도를 그리기 위해 두 가지 추가적인 데이터를 사용한다. 첫 번째 데이터는 전국의 대학 충원률 데이터이다.[^4] 두 번째 데이터는 서울 일부 대학의 위도, 경도 데이터이다.[^5]
+
+[^4]: 해당 파일은 교육통계 홈페이지([https://kess.kedi.re.kr)에서](https://kess.kedi.re.kr)에서){.uri} 다운로드 받을 수 있으며 필자의 블로그에서도 다운받을 수 있다.
+
+[^5]: 해당 파일은 필자의 블로그에서도 다운받을 수 있다.
+
+## python의 지도 그리기
+
+### scattergeo 트레이스
+
+scattergeo 트레이스는 plolty에서 지원하는 지형 외곽선 기반 지도 위에 데이터의 위치를 표현하는 지도 트레이스이다. plotly에서 지원하는 지형 외곽선 기반의 지도(plotly geo map)는 Natual Earth[(https://www.naturalearthdata.com)]<https://www.naturalearthdata.com/>에서 제공하는 'physical(물리적)', 'cultural(문화적)'인 지도를 기본적으로 지원하고 있다. 그래서 트레이스 관련 함수를 호출만으로도 해안선과 육지가 나타나는 기본 맵을 만들 수 있다. 또 이 기본 맵의 다양한 속성을 사용해 해안선, 육지, 호수, 강 등을 표시할 수도 있다.
+
+다음은 scattergeo 트레이스에서 사용하는 주요 속성이다. 
+
+![표 VI-5. scattergeo 트레이스의 주요 속성](scattergeo_attr.png)
+
+지형 기반 지도의 layout을 설정하는데 사용하는 속성은 'geo' 속성이다. 다음은 'geo'의 주요 속성이다.
+
+![표 VI-6. scattergeo 트레이스 geo 레이아웃의 주요 속성](geo_attr.png)
+
+다음은 scattergeo 트레이스로 물리적 지도를 그리는 python 코드이다.
+
+```{python}
+## scattergeo 트레이스 생성
+fig = go.Figure(go.Scattergeo())
+
+## geo 속성 설정
+fig.update_layout(geo = dict(
+  resolution=50,
+  showcoastlines=True, coastlinecolor='RebeccaPurple',
+  showland=True, landcolor='LightGreen',
+  showocean=True, oceancolor='LightBlue',
+  showlakes=True, lakecolor='Blue',
+  showrivers=True, rivercolor='Blue'),
+  height=300, margin={'r':0,'t':0,'l':0,'b':0})
+  
+fig.show()
+```
+
+![실행결과 VI-5. python의 scattergeo 트레이스 물리적 세계지도](./fig/png/6-5.png)
+
+반면 문화(cultural) 기반 지도는 물리 기반 지도에 국가별 경계선과 국가내 지역 경계선을 포함한다.
+
+다음은 문화적 지도를 그리는 python 코드이다.
+
+```{python}
+## scattergeo 트레이스 생성
+fig = go.Figure(go.Scattergeo())
+
+## geo 속성 설정
+fig.update_layout(geo = dict(
+  resolution=50,
+  showcountries=True, countrycolor='darkBlue'),
+  height=300, margin={'r':0,'t':0,'l':0,'b':0})
+  
+fig.show()
+
+```
+
+![실행결과 VI-6. python의 scattergeo 트레이스 문화적 세계지도](./fig/png/6-6.png)
+
+### choropleth 트레이스
+
+단계 구분도(choropleth map)는 지역적으로 구분된 데이터를 지도에 표시하는 방법이다. 가장 많이 사용되는 방법은 색상으로 지도의 지형에 데이터를 표시하는 방법이다. 각각의 다각형(Polygon)으로 구성되어 있는 지역의 내부 색을 데이터에 따라 다르게 함으로서 지역 간 데이터의 차이를 시각화 하는 방법이다. 결국 색이 칠해진 지형 다각형을 배치함으로 데이터를 표현하는 것이다.
+
+python에서 choropleth 트레이스를 추가하기 위해서는 `add_trace()`에 `plotly.graph_objects.Choropleth()`를 사용하여 추가한다.
+
+다음은 choropleth 트레이스에서 사용되는 주요 속성들이다.
+
+![표 VI-7. choropleth 트레이스의 주요 속성](choropleth_attr.png)
+
+choropleth 트레이스에서 사용하는 layout 속성은 scattergeo 트레이스에서 설명한 'geo' 속성을 사용한다.
+
+단계 구분도를 그리기 위해서는 크게 두 가지 데이터가 필요하다.
+
+첫 번째는 지형 데이터이다. plotly에서는 이 지형 데이터를 geoJSON으로 사용자가 직접 불러들인 지형 데이터를 사용할 수도 있고 plotly에서 지원하는 지형 데이터를 사용할 수도 있다. 하지만 plotly에서 지원하는 지형 데이터는 앞에서 그려본 바와 같이 세계지도, 대륙별 지도, 미국 지도 정도의 의미가 있기 때문에 우리나라 지형에 사용하는 데에는 적절치 않다. 우리나라 지형에 사용하기 위해서는 geoJSON 데이터를 사용해야 하는데, geoJSON 데이터는 각각의 feature를 구분하기 위한 'id'를 가져야 하고 각 feature의 특성은 'properties'로 인식되어야 한다.
+
+두 번째는 지도 위에 색상으로 표시할 지역별 데이터이다. 이 데이터는 지형 데이터의 feature 구분자와 매칭되는 필드를 가지고 있어야 한다.
+
+이렇게 두 가지 데이터가 준비되면 geoJSON 데이터는 choropleth 트레이스의 'geojson' 속성에 설정된다. 또 두 개의 데이터를 연결하는 id 중 지형 데이터 쪽 id는 'featureid' 속성으로, 지역 데이터 쪽 id는 'locations'에 설정함으로써 지형 데이터와 지역 데이터가 연결된다. 다음으로 지도위에 색상으로 단계를 구분하기 위한 지역 데이터값은 'z' 속성으로 설정한다.
+
+여기서는 전국 시도별 대학 신입생 충원율의 단계 구분도를 그려보겠다. 
+
+제일 먼저 한국 지형을 geoJSON으로 불러 읽어들이고 이를 'geojson'으로 설정한다. 우리나라의 geoJSON 파일은 인터넷에서 쉽게 구할 수 있다. 파일을 다운로드 받을때는 시도 단위의 데이터인지 시군구 단위의 데이터인지를 잘 구분하여 다운로드해야 한다. geoJSON 파일의 데이터를 읽어오기 위해서 json 라이브러리를 임포트하고 `json.load()`를 사용하여 geoJSON 데이터를 불러온다.
+
+다음으로 전국 대학 신입생 충원율 데이터를 불러오고 이 데이터 중 필요한 데이터 5개를 필터링하고 열 이름을 적절히 설정한다.
+
+불러들여온 전국 대학 신입생 충원율 데이터에는 지역을 표현하는데 한글 시도명을 사용한다. 반면 geoJSON 데이터에서는 시도 구분을 properties의 CTPRVN_CD 속성으로 정의하는데 수치로 표현하고 있다. 그래서 이를 매칭시키기 위해 데이터 변환 함수를 정의 하였고, 이 함수를 사용하여 대학 신입생 충원율 데이터에 매칭된 수치 열을 만들어 주었다.
+
+choropleth 트레이스를 만들기 위한 데이터 전처리가 끝났으면 plotly를 초기화하고 `plotly.graph_objects.Choropleth()`를 사용하여 Choropleth 트레이스를 만든다. 앞에서 불러들어온 geoJSON 데이터를 'geojson' 속성에 설정하고 충원율 데이터와 매칭할 키인 "properties.CTPRVN_CD"를 'featureidkey'에 설정한다. 'featureidkey'에 매칭될 충원율 데이터의 열을 'locations'에 설정하고 색상으로 표현해 줄 데이터인 충원율 열을 'z' 속성으로 설정한다. 전체적 색상 스케일 속성인 'colorscale'을 푸른색 팔레트("blues")로 설정하고 지형의 경계선, 컬러바, 표현 텍스트, 호버를 설정하였다.
+
+```{python echo = TRUE}
+##  json 파일을 읽기 위한 라이브러리 로딩
+import json
+
+##  지역값 매핑을 위한 함수 정의 
+def cat(row):
+    key = row['지역']
+    value = {'강원' : '42','경기' : '41','경남' : '48','경북' : '47','광주' : '29','대구' : '27','대전' : '30','부산' : '26','서울' : '11','세종' : '36','울산' : '31','인천' : '28','전남' : '46','전북' : '45','제주' : '50','충남' : '44','충북' : '43'}.get(key)
+    return value
+
+## json 파일의 데이터를 불러들임
+geometry = json.load(open('D:\\R\\git\\datavisualization\\plotly\\RnPy\\chap6\\TL_SCCO_CTPRVN.json', encoding='utf-8'))
+
+## 충원율 데이터 불러들임
+df_충원율 = pd.read_excel("D:/R/git/datavisualization/plotly/RnPy/chap6/고등 주요 01-시도별 신입생 충원율(2010-2022)_220825y.xlsx", 
+                           sheet_name = 'Sheet1', skiprows=(6), header = 0)
+                           
+df_충원율 = df_충원율.iloc[:, 0:5]
+df_충원율.columns = ('연도', '지역', '정원내모집인원', '정원내입학생수', '신입생충원율')
+df_충원율['지역코드']= df_충원율.apply(cat, axis=1)
+df_충원율 = df_충원율[(df_충원율['지역'] != '전국')&(df_충원율['연도'] == 2022)]
+
+fig = go.Figure()
+
+##  chropleth 트레이스 생성
+fig.add_trace(go.Choropleth(
+  geojson=geometry, 
+  featureidkey='properties.CTPRVN_CD', 
+  locations = df_충원율['지역코드'], 
+  z = df_충원율['신입생충원율'], 
+  colorscale="Blues", 
+  text = df_충원율['신입생충원율'],
+  marker=dict(line=dict(width=1), 
+  opacity = 0.5),
+  colorbar = dict(y = 0.5, yanchor = 'middle')))
+
+fig.update_layout(
+  title = dict(text = '22년 전국 대학 신입생 충원율', x = 0.5),
+  ## geo 속성 설정
+  geo=dict(
+    showframe = True, fitbounds = "locations",
+    visible = False, center=dict(lon=126.98, lat=37.56)),
+  autosize=False, 
+  margin = dict(t = 50, b = 25, l = 25, r = 25, pad=4, autoexpand=True))
+  
+fig.show()
+
+```
+
+```{python echo = FALSE}
+##  json 파일을 읽기 위한 라이브러리 로딩
+import json
+
+##  지역값 매핑을 위한 함수 정의 
+def cat(row):
+    key = row['지역']
+    value = {'강원' : '42','경기' : '41','경남' : '48','경북' : '47','광주' : '29','대구' : '27','대전' : '30','부산' : '26','서울' : '11','세종' : '36','울산' : '31','인천' : '28','전남' : '46','전북' : '45','제주' : '50','충남' : '44','충북' : '43'}.get(key)
+    return value
+
+## json 파일의 데이터를 불러들임
+geometry = json.load(open('D:\\R\\git\\datavisualization\\plotly\\RnPy\\chap6\\TL_SCCO_CTPRVN.json', encoding='utf-8'))
+
+## 충원율 데이터 불러들임
+df_충원율 = pd.read_excel("D:/R/git/datavisualization/plotly/RnPy/chap6/고등 주요 01-시도별 신입생 충원율(2010-2022)_220825y.xlsx", 
+                           sheet_name = 'Sheet1', skiprows=(6), header = 0)
+                           
+df_충원율 = df_충원율.iloc[:, 0:5]
+df_충원율.columns = ('연도', '지역', '정원내모집인원', '정원내입학생수', '신입생충원율')
+df_충원율['지역코드']= df_충원율.apply(cat, axis=1)
+df_충원율 = df_충원율[(df_충원율['지역'] != '전국')&(df_충원율['연도'] == 2022)]
+
+fig = go.Figure()
+
+##  chropleth 트레이스 생성
+fig.add_trace(go.Choropleth(
+  geojson=geometry, 
+  featureidkey='properties.CTPRVN_CD', 
+  locations = df_충원율['지역코드'], 
+  z = df_충원율['신입생충원율'], 
+  colorscale="Blues", 
+  text = df_충원율['신입생충원율'],
+  marker=dict(line=dict(width=1), 
+  opacity = 0.5),
+  colorbar = dict(y = 0.5, yanchor = 'middle')))
+
+fig.update_layout(
+  title = dict(text = '22년 전국 대학 신입생 충원율', x = 0.5),
+  ## geo 속성 설정
+  geo=dict(
+    showframe = True, fitbounds = "locations",
+    visible = False, center=dict(lon=126.98, lat=37.56)),
+  autosize=False, 
+  margin = dict(t = 50, b = 25, l = 25, r = 25, pad=4, autoexpand=True))
+  
+fig.show()
+
+```
+
+![실행결과 VI-7. python의 단계구분도](./fig/png/6-7.png)
+
+### scattermapbox 트레이스
+
+스캐터 맵은 지도 위에 위도, 경도로 표현된 데이터를 표시하여 그 상대적 위치를 시각화하는 지도이다. 우리가 네이버나 카카오에서 특정 장소를 찾을 때 쓰는 지도가 바로 스캐터 맵이다. 이 스캐터 맵을 맵박스에서 지원하는 지도를 기반으로 만들어 주는 것이 scattermapbox 트레이스이다. 
+
+mapbox.com은 타일 기반의 지도를 제공하는 인터넷 서비스이다. mapbox.com에서 제공하는 지도를 기반으로 해서 위도와 경도상의 위치에 특정 데이터를 점이나 선, 텍스트를 표시해 지도를 만들 수 있다. 맵박스로 구성한 mapbox.com의 지도를 사용하기 위해서는 먼저 mapbox.com에 가입하고 mapbox.com의 지도를 가져오기 위한 액세스 토큰를 받아야 한다.
+
+![](mapbox.png)
+
+python에서 scattermapbox 트레이스를 추가하기 위해서는 `add_trace()`에 `plotly.graph_objects.Scattermapbox()`를 사용하여 추가한다.
+
+다음은 Scattermapbox 트레이스에서 사용되는 주요 속성들이다.
+
+![표 VI-8. Scattermapbox 트레이스의 주요 속성](scattermapbox_attr.png)
+
+Scattermapbox 트레이스에서 'layout'을 설정하기 위해서는 'mapbox' 속성을 사용하는데 다음은 'mapbox'의 주요 속성이다. 
+
+![표 VI-9. Scattermapbox 트레이스 mapbox 레이아웃의 주요 속성](mapbox_attr.png)
+
+다음은 맵박스의 서울 지도 위에 서울의 주요 대학의 위치를 설정하는 python 코드이다. 
+
+앞서 언급했다시피 맵박스에서 제공되는 지도를 사용하기 위해서는 맵박스 토큰이 필요하다. 이 토큰은 'layout'의 'mapbox'의 'accesstoken'에 설정해야 맵박스 지도가 열린다. 맵박스에서 표시되는 지도는 대부분 'layout'의 'mapbox' 속성으로 설정한다. scattermapbox 트레이스에는 이 맵박스 지도 위에 표시될 데이터만을 설정하는데 서울 주요 대학의 위도, 경도, 대학의 이름을 설정하였다. 
+
+```{python echo = TRUE}
+##  대학 위경도 데이터 불러들임
+df_univ = pd.read_excel("파일저장경로/university.xlsx")
+
+##  scattermapbox 트레이스 추가
+fig = go.Figure(go.Scattermapbox(
+        lat=df_univ['lat'], lon=df_univ['lon'],
+        mode='markers+text',
+        marker=dict(symbol ='marker', size=15, color='blue'),
+        text=df_univ['학교명'], textposition = 'top center'))
+
+fig.update_layout(title = dict(text = '서울지역 주요 대학', x = 0.5),
+    autosize=True, hovermode='closest',
+    ##  mapbox 속성 설정
+    mapbox=dict(
+        accesstoken= mapbox_access_token,
+        bearing=0, center=dict(lon=126.98, lat=37.56),
+        pitch=0, zoom=10, style="light"))
+
+fig.show()
+
+```
+
+
+```{python echo = FALSE}
+##  대학 위경도 데이터 불러들임
+df_univ = pd.read_excel("D:/R/data/Rnpy/university.xlsx")
+
+##  scattermapbox 트레이스 추가
+fig = go.Figure(go.Scattermapbox(
+        lat=df_univ['lat'], lon=df_univ['lon'],
+        mode='markers+text',
+        marker=dict(symbol ='marker', size=15, color='blue'),
+        text=df_univ['학교명'], textposition = 'top center'))
+
+fig.update_layout(title = dict(text = '서울지역 주요 대학', x = 0.5),
+    autosize=True, hovermode='closest',
+    ##  mapbox 속성 설정
+    mapbox=dict(
+        accesstoken= mapbox_access_token,
+        bearing=0, center=dict(lon=126.98, lat=37.56),
+        pitch=0, zoom=10, style="light"))
+
+fig.show()
+
+```
+
+![실행결과 VI-8. 맵박스를 사용한 R의 scatter 지도](./fig/png/6-8.png)
+
+## R의 지도 그리기
+
+### scattergeo 트레이스
+
+R에서도 plotly에서 지원하는 기본 지도를 scattergeo 트레이스를 사용하여 그릴 수 잇다. scattergeo 트레이스에서 사용하는 속성과 'layout'의 설정을 위한 'geo' 속성은 python과 동일하다. 
+
+다음은 scattergeo 트레이스로 물리적 지도를 그리는 R 코드이다.
+
+-   R
+
+```{r}
+plot_ly() |>
+  ##   scattergoe 트레이스 생성
+  add_trace(type = 'scattergeo') |>
+  layout(geo = list(resolution=50, 
+                    showcoastlines=TRUE, coastlinecolor='RebeccaPurple',
+                    showland=TRUE, landcolor='LightGreen',
+                    showocean=TRUE, oceancolor='LightBlue',
+                    showlakes=TRUE, lakecolor='white',
+                    showrivers=TRUE, rivercolor='Blue'), 
+         margin = list(r = 0, l = 0, t = 0, b = 0))
+```
+
+![실행결과 VI-9. R의 scattergeo 트레이스 물리적 세계지도](./fig/png/6-9.png)
+
+다음은 scattergeo 트레이스로 아시아 지역의 문화적 지도를 그리는 R 코드이다.
+
+```{r}
+plot_ly() |>
+  add_trace(type = 'scattergeo') |>
+  layout(geo = list(resolution=50, scope = 'asia', 
+                    showcountries=TRUE, countrycolor="black"), 
+         margin = list(r = 0, l = 0, t = 0, b = 0))
+```
+
+![실행결과 VI-10. python의 scattergeo 트레이스 문화적 아시아 지도](./fig/png/6-10.png)
+
+#### 단계 구분도
+
+R에서 plotly로 지도를 그리는 것은 지금까지의 plotly 객체를 만드는 방식과 조금 다른 방식으로 설명하도록 하겠다. 물론 python과 같이 만들 수도 있겠지만 이보다는 수월하면서 품질이 높은 방법이 있기 때문에 이를 위주로 설명하도록 하겠다. 
+
+R에서 지도를 그리기 위해서는 하나 알아두어야 하는 것이 sf 클래스 데이터이다. 이는 단지 plotly에서만 사용하는 클래스가 아닌 R에서 광범위하게 사용되는 지형 데이터 전용 데이터 클래스이다. sf 클래스는 R의 sf 패키지에서 제공하는 클래스 데이터 타입으로 'simple feature'의 준말이다. sf 클래스는 지형 데이터를 R에서 기본적으로 사용되는 data.frame이나 tibble 형태로 저장하여 R에서 다루기가 쉽게 사용되는 클래스로 R을 종합적으로 관장하는 R consortium에서 관리하는 데이터 타입이다. R에서 가장 쉽게 지형 데이터를 관리하고 처리할 수 있는 데이터 타입이기 때문에 plolty에서도 sf 데이터 타입을 지원하도록 설계되어 있다.
+
+그래서 R에서는 plotly의 지도 전용 트레이스를 사용하기보다는 sf 클래스를 활용한 R 전용 함수를 사용하는 방법이 지도의 품질상 더 효과적이다. sf 클래스는 `plot_ly()`, `plot_geo()`와 `plot_mapbox()`로 사용이 가능하다.
+
+`plot_ly()`는 지금까지 plotly 객체를 초기화하는 데 사용했던 바로 그 함수이다. `plot_ly()`에 바인딩되는 데이터프레임이 sf 클래스면 `plot_ly()`는 지형 데이터를 처리하도록 동작한다. `plot_ly()`에서 사용하는 주요 매개변수는 다음과 같다.
+
+::: comment
+plot_ly(data = data.frame(), ..., type = NULL, name, color, colors = NULL, alpha = NULL, stroke, strokes = NULL, alpha_stroke = 1, size, sizes = c(10, 100), span, spans = c(1, 20), symbol, symbols = NULL, linetype, linetypes = NULL, split, frame, width = NULL, height = NULL, source = "A")
+
+-   data : 시각화에 사용될 지형 데이터(sf 타입)
+-   color : 내부에 채워지는 색상 매핑으로 사용될 데이터
+-   colors : color에 사용될 색상 팔레트
+-   alpha : 투명도를 설정하는 색상의 알파 채널값
+-   stroke : 컬러와 유사하지만 색이 채워진 폴리곤에서의 외곽선 색
+-   split : 다중 트레이스로 구분될 값 설정
+:::
+
+`plot_geo()`는 R의 plotly에서 지도 객체의 초기화를 위해 사용하는 함수로 `plot_ly()` 대신 사용할 수 있는 함수이다. `plot_geo()`는 plotly의 주로 shape 파일이나 geoJSON으로 지도를 그리고 데이터를 사용하여 지도를 그리는데 지도 트레이스 중 scattermap 트레이스로 지도를 그린다. `plot_geo()`의 매개변수는 'offline' 매개변수를 제외하고는 `plot_ly()`의 매개변수와 같다
+
+::: comment
+plot_geo(data = data.frame(), ..., type = NULL, name, color, colors = NULL, alpha = NULL, stroke, strokes = NULL, alpha_stroke = 1, size, sizes = c(10, 100), span, spans = c(1, 20), symbol, symbols = NULL, linetype, linetypes = NULL, split, frame, width = NULL, height = NULL, source = "A", offline = FALSE)
+
+-   offline : 인터넷 연결 여부에 관계없이 지도를 볼 수 있도록 지형 데이터를 포함시킬지를 결정
+:::
+
+`plot_mapbox()`는 mapbox.com의 지도를 사용하여 지도 그리는 함수로 앞에서 언급했듯이 mapbox.com의 API key가 필요하다. `plot_mapbox()`는 지도 트레이스 중 scattermapbox 트레이스로 지도를 그린다. 사용법은 `plot_ly()`와 동일하다.
+
+다음은 `ggplot2`의 `geom_sf()`와 `plot_ly()`, `plot_geo()`, `plot_mapbox()`로 그린 우리나라의 지도이다. 
+
+
+```{r echo = FALSE}
+## 
+if(!require(raster)) {
+  install.packages('raster')
+  library(raster)
+}
+
+## 한국 지형 데이터를 불러옴
+map_data <- getData("GADM", country = "KOR", level = 1, type = "sf")
+st_crs(map_data) <- st_crs(map_data)  ## old map 데이터 경고를 없애기 위해 사용
+
+subplot(nrows = 2,
+  ggplot(map_data) + geom_sf(),
+  plot_ly(map_data, color = I('skyBlue')),
+  plot_geo(map_data, color = I('skyBlue')),
+  plot_mapbox(map_data, color = I('skyBlue')), margin = 0.05) |> 
+  hide_legend()
+
+```
+
+![실행결과 VI-10. R 전용 지도 생성 함수 사용 결과](./fig/png/6-11.png)
+
+그럼, R에서 단계 구분도(choropleth)를 그리는 방법에 대해 알아본다. 
+
+앞서 설명했듯이 단계 구분도에서는 지형 데이터와 지역별 데이터, 두 가지 데이터가 필요하다. 
+
+R에서 단계 구분도를 그리기 위해 중요한 것은 python과는 달리 지형 데이터와 지역  데이터를 가진 데이터프레임을 조인하여 하나의 객체로 만들어야 한다는 것이다. 이를 위해서 지역을 표현하는 지형 데이터의 키와 표현할 데이터의 지역 키를 일치하도록 전처리해야 한다는 것이다. 
+
+R에서도 앞의 python에서 그렸던 전국 시도별 대학 신입생 충원율의 단계 구분도를 동일하게 그려보겠다.
+
+먼저 지도 생성에 필요한 우리나라 지형 데이터를 가져와야 한다. 이에 사용한 우리나라의 지도 데이터는 `raster` 패키지의 `getData()`를 통해 제공되는 한국의 지형 데이터를 사용하였다. `getData()`는 특정 국가의 지형 데이터를 가져오는 함수이다. 'level'에 따라 지도의 지형 레벨을 결정할 수 있는데 한국 지형 데이터의 경우 'level = 1'이면 시도 단위의 지형 데이터를 의미한다. 이 데이터를 `sf` 데이터 타입으로 가져왔다.
+
+다음으로 지도에 표시할 데이터인 전국의 대학 신입생 충원율 데이터를 가져온다. 이 데이터 중 사용할 5개의 열만을 선택해서 데이터를 저장하고 열 이름을 설정한다.
+
+전국 대학 충원율 데이터에서는 지역이 한글로 표현되어 있고 지형 데이터에서 지역키는 영문 키로 저장되어 있기 때문에 지형 데이터의 키와 맞추기 위해 충원율 데이터의 지역을 지형 데이터의 영문 키로 변환하는 과정을 거쳤다.
+
+이제 충원율이 포함된 `sf` 클래스 데이터프레임을 사용하여 단계 구분도를 그린다. 단계 구분도를 그리기 위해서 `plot_ly()`, `plot_geo()`, `plot_mapbox()` 중에 `plot_ly()`를 사용하였다.
+
+그리고 전체 플롯의 제목과 여백을 설정하기 위해 `layout()`을 사용하였다.
+
+다음은 한국 지도에 전국의 대학 신입생 충원율을 색상으로 표시하는 단계구분도를 만드는 R 코드이다.
+
+```{r echo = FALSE}
+##  지도를 위한 패키지 로딩
+if (!require(raster)) {
+  install.packages('raster')
+  library(raster) }
+
+if (!require(sf)) {
+  install.packages('sf')
+  library(sf) }
+
+####  충원율 데이터
+df_충원율 <- read_excel('D:/R/git/datavisualization/plotly/RnPy/chap6/고등 주요 01-시도별 신입생 충원율(2010-2022)_220825y.xlsx', 
+                     sheet = 'Sheet1', skip = 7, col_names = FALSE, 
+                     col_types = c(rep('text', 2), rep('numeric', 12)))
+
+df_충원율 <- df_충원율 |> dplyr::select(1, 2, 3, 4, 5)
+
+## df_입학자의 열이름을 적절한 이름으로 설정
+colnames(df_충원율) <- c('연도', '지역', '정원내모집인원', '정원내입학생수', '신입생충원율')
+
+##  지형 데이터와 매칭을 위한 열 생성
+df_충원율 <- df_충원율 |> filter(연도 == '2022', 지역 != '전국') |> 
+  mutate(id = case_when(
+    지역 == '강원' ~ 'KR.KW', 지역 == '경기' ~ 'KR.KG',
+    지역 == '경남' ~ 'KR.KN', 지역 == '경북' ~ 'KR.KB',
+    지역 == '광주' ~ 'KR.KJ', 지역 == '대구' ~ 'KR.TG',
+    지역 == '대전' ~ 'KR.TJ', 지역 == '부산' ~ 'KR.PU',
+    지역 == '서울' ~ 'KR.SO', 지역 == '세종' ~ 'KR.SJ',
+    지역 == '울산' ~ 'KR.UL', 지역 == '인천' ~ 'KR.IN',
+    지역 == '전남' ~ 'KR.CN', 지역 == '전북' ~ 'KR.CB',
+    지역 == '제주' ~ 'KR.CJ', 지역 == '충남' ~ 'KR.GN',
+    지역 == '충북' ~ 'KR.GB'))
+
+##  sf 포맷으로 한국 지형 데이터를 가져옴 
+map_data <- getData("GADM", country = "KOR", level = 1, type = "sf")
+##  old crs 경고를 없애기 위해 사용
+st_crs(map_data) <- st_crs(map_data)
+
+plot_dat <- left_join(map_data, df_충원율, by = c("HASC_1" = "id")) %>%
+  st_as_sf()
+
+plot_ly(plot_dat) %>%
+  add_sf(type = "scatter", 
+         split = ~지역, color = ~신입생충원율,
+         showlegend = F, colors = "Blues",
+         text = ~paste0(지역, "\n", round(신입생충원율, 2), '%'),
+         hoveron = "fills", hoverinfo = "text") %>%
+  layout(title = '22년 전국 대학 신입생 충원율', 
+         margin = margins_R) 
+```
+
+```{r echo = FALSE}
+library(raster)
+library(sf)
+
+# Get the map data in sf format
+map_data <- getData("GADM", country = "KOR", level = 1, type = "sf")
+st_crs(map_data) <- st_crs(map_data)
+
+province <- map_data$HASC_1
+
+####  충원율 데이터
+df_충원율 <- read_excel('데이터저장경로/고등 주요 01-시도별 신입생 충원율(2010-2022)_220825y.xlsx', 
+                     ## 'data' 시트의 데이터를 불러오는데,
+                     sheet = 'Sheet1',
+                     ## 앞의 10행을 제외하고
+                     skip = 7, 
+                     ## 첫번째 행은 열 이름을 설정
+                     col_names = FALSE, 
+                     ## 열의 타입을 설정, 처음 8개는 문자형으로 다음 56개는 수치형으로 설정
+                     col_types = c(rep('text', 2), rep('numeric', 12)))
+
+df_충원율 <- df_충원율 |> dplyr::select(1, 2, 3, 4, 5)
+
+## df_입학자의 열이름을 적절한 이름으로 설정
+colnames(df_충원율) <- c('연도', '지역', '정원내모집인원', '정원내입학생수', '신입생충원율')
+
+
+df_충원율 <- df_충원율 |> filter(연도 == '2022', 지역 != '전국') |> 
+  mutate(id = case_when(
+    지역 == '강원' ~ 'KR.KW', 
+    지역 == '경기' ~ 'KR.KG',
+    지역 == '경남' ~ 'KR.KN',
+    지역 == '경북' ~ 'KR.KB',
+    지역 == '광주' ~ 'KR.KJ',
+    지역 == '대구' ~ 'KR.TG',
+    지역 == '대전' ~ 'KR.TJ',
+    지역 == '부산' ~ 'KR.PU',
+    지역 == '서울' ~ 'KR.SO',
+    지역 == '세종' ~ 'KR.SJ',
+    지역 == '울산' ~ 'KR.UL',
+    지역 == '인천' ~ 'KR.IN',
+    지역 == '전남' ~ 'KR.CN',
+    지역 == '전북' ~ 'KR.CB',
+    지역 == '제주' ~ 'KR.CJ',
+    지역 == '충남' ~ 'KR.GN',
+    지역 == '충북' ~ 'KR.GB'
+  ))
+
+plot_dat <- left_join(map_data, df_충원율, by = c("HASC_1" = "id")) %>%
+  st_as_sf()
+
+
+plot_ly(plot_dat) %>%
+  add_sf(type = "scatter", 
+         split = ~지역,
+         color = ~신입생충원율,
+         showlegend = F,       # don't show a legend for each region
+         colors = "Blues",
+         text = ~paste0(지역, "\n", round(신입생충원율, 2), '%'),
+         hoveron = "fills",
+         hoverinfo = "text") %>%
+  layout(title = '22년 전국 대학 신입생 충원율', 
+         margin = margins_R) 
+
+```
+
+![실행결과 VI-12. R의 plot_ly()로 구현한 단계 구분도](./fig/png/6-12.png)
+
+### 맵 박스를 사용한 지도
+
+R에서 스캐터 맵을 맵박스 지도 위에서 구현하는 것은 앞에서 설명한 `plot_mapbox()`로 맵박스로 지도를 그리고, 이 지도 위에 위도와 경도 축에 표현되는 scatter 트레이스를 그리는 방법으로 구현할 수 있다.
+
+맵박스에서 맵을 불러들이는 과정은 크게 세 가지 방법이 있는데 이 세 가지 방법들은 각각의 레이어로 구성이 되는데 기본 레이어 외의 레이어에 속한 맵들의 순서는 'below' 속성을 통해 순서를 다시 구성할 수 있다. 
+
+첫 번째는 맵 레이어는 layout.mapbox.sytle로 정의되는 기본 맵 레이어이다. 이 맵은 가장 낮은 수준의 레이어로써 필수적인 레이어의 맵이고 순서를 변경할 수 없다. 두 번째는 `plot_ly()`에 의해 불려지는 맵 레이어이다. 보통 이 레이어는 지도에 표시되는 트레이스에 관련한 레이어로 많이 사용된다. 세 번째는 layout.mapbox.layer에 의해 호출되고 순서가 정해지는 레이어이다. 이 레이어는 raster나 vector 등의 타입으로 설정되어 기본 맵이나 트레이스 맵의 보완적 맵으로 많이 사용된다. 
+
+트레이스 이름에 'mapbox'가 붙는 트레이스와 'layout'의 'mapbox' 속성들은 mapbox.com에서 제공하는 Mapbox GL JS 오픈 소스 라이브러리를 사용한다. 'mapbox' 트레이스의 layout.mapbox.style에서 호출할 때 API 인증이 필요한 지도를 사용하기 위해서는  'https://mapbox.com/'에서 무료 계정을 등록하고 Mapbox 액세스 토큰을 받아야 한다.
+
+'white-bg', 'open-street-map', 'carto-positron', 'carto-darkmatter', 'stamen-terrain', 'stamen-toner', 'stamen-watercolor'의 몇 가지 맵을 제외하고는 대부분의 맵이 API 인증이 필요한데 API 키를 받으면 다음과 같이 설정할 수 있다. 
+
+```{r}
+##  맵박스 토큰 설정
+Sys.setenv("MAPBOX_TOKEN" = mapboxToken)
+
+```
+
+
+
+다음은 서울의 주요 대학의 위도와 경도 데이터를 읽어들이고, `raster`패키지에서 우리나라 지도를 시군구 레벨('level = 2')로 불러들였다.
+
+이 지도 위에 scatter 트레이스로 마커와 텍스트를 사용해 각 대학의 위치를 표시하였다.
+
+```{r echo = TRUE}
+##  대학의 위경도 데이터 불러들임
+df_univ <- read_excel("파일저장경로/university.xlsx", 
+                      col_types = c('text', 'numeric', 'numeric'))
+
+plot_dat_seoul <- plot_dat |> filter(GID_1 == 'KOR.16_1')
+
+plot_mapbox(plot_dat_seoul) |>
+  add_trace(data = df_univ, type = 'scattermapbox', mode = 'markers+text', 
+            x = ~lon, y = ~lat,
+            marker = list(size = 10, symbol = 'marker'),
+            text = ~학교명, textposition = 'top center', 
+            textfont = list(color = 'blue')) |>
+  layout(title = '서울지역 주요 대학',
+         autosize=TRUE, hovermode='closest',
+         mapbox=list(
+           bearing=0, center=list(lon=126.98, lat=37.56),
+           pitch=0, zoom=10, style="light"),
+        margin = margins_R, 
+        showlegend = FALSE)
+
+```
+
+```{r echo = FALSE}
+##  대학의 위경도 데이터 불러들임
+df_univ <- read_excel("D:/R/git/datavisualization/plotly/RnPy/chap6/university.xlsx", 
+                      col_types = c('text', 'numeric', 'numeric'))
+
+plot_dat_seoul <- plot_dat |> filter(GID_1 == 'KOR.16_1')
+
+plot_mapbox(plot_dat_seoul) |>
+  add_trace(data = df_univ, type = 'scattermapbox', mode = 'markers+text', 
+            x = ~lon, y = ~lat,
+            marker = list(size = 10, symbol = 'marker'),
+            text = ~학교명, textposition = 'top center', 
+            textfont = list(color = 'blue')) |>
+  layout(title = '서울지역 주요 대학',
+         autosize=TRUE, hovermode='closest',
+         mapbox=list(
+           bearing=0, center=list(lon=126.98, lat=37.56),
+           pitch=0, zoom=10, style="light"),
+        margin = margins_R, 
+        showlegend = FALSE)
+
+```
+
+![실행결과 VI-13. R의 맵 박스를 사용한 지도](./fig/png/6-13.png)
+

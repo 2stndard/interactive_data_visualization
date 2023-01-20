@@ -1,0 +1,5 @@
+속성명은 '', 속성값은 ""
+R의 함수에 ... 넣기
+margins_R, margins_P 점검
+word font
+하위 속성(0) 세부 속성(X)
